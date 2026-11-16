@@ -6,7 +6,10 @@ compares against a number measured from the laptop, because every host here can 
 the wrong thing. Only read calls: Dalux gets IsTenderPublic and nothing else, EU-Supply only its
 public documents page (never /app/docmgmt, which its robots.txt disallows).
 
-    python3 dk_egress.py            -> one line per check, exit 1 if any check differs
+    python3 tools/dk_egress.py      -> one line per check, exit 1 if any check differs
+
+The hosts' answers can change as tenders close -- a list grows by a corrigendum, a file is
+withdrawn -- so a red draw is a reason to look, and the numbers are re-measured when one is.
 """
 import datetime
 import json
@@ -15,7 +18,12 @@ import urllib.error
 import urllib.request
 
 UA = "Mozilla/5.0 (compatible; eis-tool)"
-EXPECT = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {}
+# Measured from the laptop on 2026-11-16. A runner that gets anything else has found a difference.
+MEASURED = {"udbud_2026-09-02": 42, "udbud_2026-11-13": 39, "detail_has_procedure": True,
+            "ted_2026-11-13": 36, "ethics_list": 39, "ethics_file": "25504446",
+            "dalux_public": True, "dalux_file": "25504446", "udbud_file": "504b0304",
+            "byggeweb_list": 24, "eusupply_page": True, "mercell_names": 10}
+EXPECT = json.loads(sys.argv[1]) if len(sys.argv) > 1 else MEASURED
 
 
 def req(url, body=None, headers=None, first=None, timeout=40):

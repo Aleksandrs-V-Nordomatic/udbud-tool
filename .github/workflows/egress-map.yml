@@ -35,9 +35,4 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Draw ${{ matrix.n }}
-        run: |
-          python3 tools/dk_egress.py '{"udbud_2026-09-02": 42, "udbud_2026-11-13": 39,
-            "detail_has_procedure": true, "ted_2026-11-13": 36, "ethics_list": 39,
-            "ethics_file": "25504446", "dalux_public": true, "dalux_file": "25504446",
-            "udbud_file": "504b0304", "byggeweb_list": 24, "eusupply_page": true,
-            "mercell_names": 10}'
+        run: python3 tools/dk_egress.py

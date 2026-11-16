@@ -1,0 +1,142 @@
+name: dk-day
+
+# One Danish window, fetched, proved and delivered.
+#
+# ONE RUNNER. udbud.dk, TED and every anonymous document host answered eight runner addresses at
+# one moment on 2026-11-16 with exactly what a workstation gets (egress-map, run 43872449785), so
+# there is no address lottery and no shards.
+#
+# A RANGE, NOT A DATE. A night that did not run is caught up by widening the window, never by
+# running twice.
+#
+# THE DATES ARE DANISH. udbud.dk filters by `publiceringsdato`, a calendar date in Copenhagen,
+# and the default -- yesterday -- is yesterday in Copenhagen.
+
+on:
+  # No schedule: the routine that reads the day starts it, so there is one actor per day.
+  # Denmark publishes on weekdays; a run over a weekend is a normal empty day, not a failure.
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "First day of the window, YYYY-MM-DD, Danish. Blank means yesterday in Copenhagen"
+        required: false
+        default: ""
+      to:
+        description: "Last day of the window. Blank means the same as the first -- one day"
+        required: false
+        default: ""
+      targets:
+        description: "Procedure ids to re-read whatever the gate says -- the cards somebody is still deciding about. One per line; DK:<procedureId> or the bare id"
+        required: false
+        default: ""
+      limit:
+        description: "Stop after this many tenders -- for a trial run, not for a night"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dk-day
+  cancel-in-progress: false
+
+jobs:
+  day:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    container:
+      image: ${{ vars.TOOLCHAIN_IMAGE }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Test
+        run: python3 -m unittest discover -s tests -t tests
+
+      # Decided once, here, so a run that crosses midnight cannot fetch one folder and deliver
+      # another.
+      - name: Which window this is
+        env:
+          RUN_DATE: ${{ inputs.date }}
+          RUN_TO: ${{ inputs.to }}
+        run: |
+          DAY="${RUN_DATE:-$(TZ=Europe/Copenhagen date -d 'yesterday' +%F)}"
+          echo "DAY=$DAY" >> "$GITHUB_ENV"
+          echo "DAY_TO=${RUN_TO:-$DAY}" >> "$GITHUB_ENV"
+          echo "the window is $DAY .. ${RUN_TO:-$DAY}, Danish dates"
+
+      - name: Does this address get Denmark whole
+        env:
+          EIS_COUNTRY: DK
+        run: python3 eis_tool.py probe || echo "::warning::the probe differed from the measured numbers -- the run will still prove its own window, but look at the line above"
+
+      # Ask the destination before walking the portal: an expired client secret found after the
+      # downloads is the most expensive moment to learn it.
+      - name: Can this run deliver what it is about to fetch
+        if: ${{ env.HAVE_GRAPH == 'true' }}
+        env:
+          HAVE_GRAPH: ${{ secrets.GRAPH_DRIVE_ID != '' }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_DEST_ROOT: ${{ secrets.GRAPH_DEST_ROOT }}
+          EIS_COUNTRY: DK
+        run: python3 deliver_dk.py --check
+
+      # THE SECRET IS REQUIRED. Falling back to the committed example would fetch almost nothing,
+      # deliver a valid day and report success -- an empty morning that reads like a quiet one.
+      - name: The recall policy, and how much of the window it lets through
+        env:
+          DK_POLICY: ${{ secrets.DK_POLICY }}
+        run: |
+          if [ -z "$DK_POLICY" ]; then
+            echo "::error::no DK_POLICY secret. The committed example is an unrelated illustration and would produce an almost empty night that looks like a successful one."
+            exit 1
+          fi
+          printf '%s' "$DK_POLICY" > policy.json
+          echo "policy: from the repository secret"
+          python3 tools/describe_policy.py policy.json
+
+      - name: Fetch the window
+        env:
+          EIS_COUNTRY: DK
+          LIMIT: ${{ inputs.limit }}
+          TARGETS: ${{ inputs.targets }}
+        run: |
+          printf '%s' "$TARGETS" > targets.txt
+          echo "fetching the Danish window $DAY .. $DAY_TO, plus $(grep -c . targets.txt || true) watched procedure(s)"
+          rc=0
+          python3 eis_tool.py day "$DAY" --to "$DAY_TO" --out work \
+            ${LIMIT:+--limit $LIMIT} \
+            $([ -s targets.txt ] && echo "--targets targets.txt") \
+            --policy policy.json || rc=$?
+          # A SHORT DAY IS STILL A DAY, AND IT STILL GETS DELIVERED. `day` exits 1 when the window
+          # did not arrive whole; day.json says why and marks itself incomplete.
+          if [ "$rc" -eq 1 ]; then
+            echo "::warning::the window is short or unproven -- day.json names what happened, and it is delivered anyway"
+          elif [ "$rc" -ne 0 ]; then
+            exit "$rc"
+          fi
+
+      - name: Read what no decoder could
+        if: ${{ always() }}
+        env:
+          EIS_COUNTRY: DK
+        run: python3 eis_tool.py scans --out work --date "$DAY_TO" || true
+
+      - name: Deliver the window where the reader can reach it
+        if: ${{ success() && env.HAVE_GRAPH == 'true' }}
+        env:
+          HAVE_GRAPH: ${{ secrets.GRAPH_DRIVE_ID != '' }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_DEST_ROOT: ${{ secrets.GRAPH_DEST_ROOT }}
+          EIS_COUNTRY: DK
+        run: python3 deliver_dk.py --out work --date "$DAY_TO"
+
+      - name: Did the day arrive whole
+        if: ${{ always() }}
+        run: python3 tools/day_verdict.py "work/DK/$DAY_TO/day.json"

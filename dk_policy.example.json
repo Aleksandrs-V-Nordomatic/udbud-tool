@@ -1,0 +1,17 @@
+{
+  "_what": "Example Danish recall policy. Copy this shape into the DK_POLICY secret; do not commit a real one.",
+  "_rule": "Excluded term in any read text, or a code set entirely inside excluded divisions => drop. No text at all => keep. Otherwise keep when a code matches a recall_cpv_prefix, or a read text contains a recall_title_terms root.",
+  "_surfaces": "Four texts are read: the Danish title, the Danish and English titles together, the buyer's own description (udbud.dk carries it in the search row), and the CPV name printed beside the main code.",
+  "_boundaries": "A term written with spaces around it matches only on a token boundary, because the gate folds every run of punctuation into a space and pads the whole text. So short abbreviations are written spaced, and no term contains a hyphen: `kopi-maskine` in a title folds to `kopi maskine`.",
+  "recall_title_terms": [
+    " mfp ",
+    "kopimaskine",
+    "printerservice",
+    "kontorartikl"
+  ],
+  "_note": "An unrelated illustration (office printing), chosen so that this file discloses nothing about what any deployment looks for.",
+  "hard_exclude_prefixes": ["30"],
+  "hard_exclude_title_terms": ["toner"],
+  "override_prefixes": ["30199"],
+  "recall_cpv_prefixes": ["79810"]
+}

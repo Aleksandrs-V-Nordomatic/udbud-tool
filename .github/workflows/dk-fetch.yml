@@ -1,0 +1,43 @@
+name: dk-fetch
+
+# One Danish tender, past the gate, for a card somebody is looking at right now. Held by its
+# procedure id; a notice id is followed to the procedure's newest live notice.
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference:
+        description: "The procedure id (or a notice id), e.g. 7c03c120-69c0-4112-af76-3d30b1aab18e"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    container:
+      image: ${{ vars.TOOLCHAIN_IMAGE }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Fetch one tender
+        env:
+          EIS_COUNTRY: DK
+          REFERENCE: ${{ inputs.reference }}
+        run: |
+          python3 eis_tool.py fetch "$REFERENCE" --out work | tee fetch.log
+          echo "FETCH_DAY=$(sed -n 's/.*--date //p' fetch.log)" >> "$GITHUB_ENV"
+
+      - name: Deliver it where the reader can reach it
+        if: ${{ success() && env.HAVE_GRAPH == 'true' }}
+        env:
+          HAVE_GRAPH: ${{ secrets.GRAPH_DRIVE_ID != '' }}
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_DEST_ROOT: ${{ secrets.GRAPH_DEST_ROOT }}
+          EIS_COUNTRY: DK
+        run: python3 deliver_dk.py --out work --date "$FETCH_DAY"
