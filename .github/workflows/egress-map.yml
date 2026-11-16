@@ -1,0 +1,43 @@
+name: egress-map
+
+# Everything known about the Danish route was measured from a workstation. The tool runs on a
+# GitHub runner, from a datacentre address block, and no measurement so far says whether
+# udbud.dk, TED and the document hosts treat those addresses the way they treat an office one.
+# Latvia pays for that question not being asked early: EIS refuses part of the runner addresses,
+# which is why the Latvian day is four shards.
+#
+# Eight jobs at the same moment, each on its own runner, each downloading a few kilobytes.
+#
+#   all pass             -> one runner, no sharding. Build the simple tool.
+#   some pass, some fail -> per address. Shard the stage that failed.
+#   all fail on one host -> that host refuses the datacentre range; read it some other way.
+#
+# THE NUMBERS ARE THE POINT, not the status codes. udbud.dk, ethics.dk and Dalux can all answer
+# 200 with the wrong thing (an empty list, an HTML shell), so every check compares against a
+# value measured from the laptop on 2026-11-16: 42 notices on 2026-09-02, 39 on 2026-11-13, TED 36
+# for 2026-11-13, a PDF on ethics and Dalux, a ZIP on api.udbud.dk, 24 Byggeweb files, 10 Mercell
+# file names.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    strategy:
+      fail-fast: false
+      matrix:
+        n: [1, 2, 3, 4, 5, 6, 7, 8]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Draw ${{ matrix.n }}
+        run: |
+          python3 tools/dk_egress.py '{"udbud_2026-09-02": 42, "udbud_2026-11-13": 39,
+            "detail_has_procedure": true, "ted_2026-11-13": 36, "ethics_list": 39,
+            "ethics_file": "25504446", "dalux_public": true, "dalux_file": "25504446",
+            "udbud_file": "504b0304", "byggeweb_list": 24, "eusupply_page": true,
+            "mercell_names": 10}'
