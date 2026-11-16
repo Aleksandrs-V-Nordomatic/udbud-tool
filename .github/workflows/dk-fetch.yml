@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: read
+  packages: read           # to pull this repository's own toolchain image, which is private
 
 jobs:
   fetch:
@@ -19,6 +20,9 @@ jobs:
     timeout-minutes: 60
     container:
       image: ${{ vars.TOOLCHAIN_IMAGE }}
+      credentials:
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
