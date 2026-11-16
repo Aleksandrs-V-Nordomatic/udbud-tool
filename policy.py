@@ -75,7 +75,7 @@ import re
 # filter without learning what anyone points it at. An absent or unreadable policy means
 # fetch everything, which is the only safe direction for a filter that failed to load:
 # fetching too much costs time, and dropping silently costs a tender.
-POLICY_ENV = "FI_POLICY"
+POLICY_ENV = "DK_POLICY"
 
 # THE NAMES THIS TOOL DOES NOT READ, CHECKED RATHER THAN IGNORED. Every country tool in
 # this family names its policy after its own country, and a deployment is set up by copying
