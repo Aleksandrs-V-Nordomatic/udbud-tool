@@ -23,7 +23,6 @@ MEASURED = {"udbud_2026-09-02": 42, "udbud_2026-11-13": 39, "detail_has_procedur
             "ted_2026-11-13": 36, "ethics_list": 39, "ethics_file": "25504446",
             "dalux_public": True, "dalux_file": "25504446", "udbud_file": "504b0304",
             "byggeweb_list": 24, "eusupply_page": True, "mercell_names": 10}
-EXPECT = json.loads(sys.argv[1]) if len(sys.argv) > 1 else MEASURED
 
 
 def req(url, body=None, headers=None, first=None, timeout=40):
@@ -91,7 +90,10 @@ def magic(url):
     return st, b.hex()
 
 
-def main():
+def main(expect=None):
+    # The expected numbers are an argument, not sys.argv read at import: `eis_tool.py probe` imports
+    # this module, and its argv[1] is the word "probe".
+    expect = MEASURED if expect is None else expect
     got = {}
     for day in ("2026-09-02", "2026-11-13"):
         st, total, rows = (udbud_total(day) + ([],))[:3]
@@ -123,12 +125,12 @@ def main():
     got["mercell_names"] = b.count(b"_tdDownload") if st == 200 else st
 
     ip = req("https://api.ipify.org")[1].decode() or "?"
-    bad = [k for k, v in EXPECT.items() if got.get(k) != v]
+    bad = [k for k, v in expect.items() if got.get(k) != v]
     print("ip %-16s %s" % (ip, json.dumps(got, sort_keys=True)))
     for k in bad:
-        print("::error::%s is %r, expected %r" % (k, got.get(k), EXPECT[k]))
+        print("::error::%s is %r, expected %r" % (k, got.get(k), expect[k]))
     return 1 if bad else 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(json.loads(sys.argv[1]) if len(sys.argv) > 1 else None))
