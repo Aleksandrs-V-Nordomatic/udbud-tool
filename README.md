@@ -131,9 +131,6 @@ lands in My Comdia → My Tender/offer, and the vendor page marks each file down
 decided on 23 Nov 2026. It happens only for tenders that reach the fetch — recall-gate survivors
 and watched cards. **Show interest and Subscribe are never pressed**: the module refuses to post
 back any control but the sign-in, Access to tender, Go to tender and Download all.
-**Prequalification tenders stay manual** (decided 23 Nov 2026): their page offers "Register for
-prequalification" (`lbRegisterPreQual`) instead of Access to tender, which would make the company an
-applicant. It is not pressed; the tender stays `gated` with that reason and a person applies.
 
 When it cannot read a tender — no account, a refused sign-in, a tender page that offers no Access
 to tender, an answer that is not an archive, an archive over 1 GB unpacked — the tender stays
