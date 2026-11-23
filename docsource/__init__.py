@@ -7,7 +7,7 @@ notices of 3-14 Nov 2026:
     host            share   without an account
     eu-supply       32.2%   names of the files; the files themselves after "expression of interest"
     ethics.dk       19.5%   every public file  (481 of 481 downloaded)
-    comdia          16.1%   nothing, not even the names
+    comdia          16.1%   every file, under our supplier account (Access to tender)
     mercell          8.0%   names and sizes
     amgros           8.0%   pharmaceuticals, out of scope
     dalux            6.9%   every file of a public tender (1 622 of 1 622)

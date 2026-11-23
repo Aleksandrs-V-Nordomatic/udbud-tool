@@ -30,7 +30,12 @@ jobs:
         env:
           EIS_COUNTRY: DK
           REFERENCE: ${{ inputs.reference }}
+          # The supplier account `docsource/comdia.py` opens Comdia tenders with: it presses
+          # Access to tender on each Comdia tender that reaches the fetch, which the buyer sees.
+          COMDIA_USER: ${{ secrets.COMDIA_USER }}
+          COMDIA_PASSWORD: ${{ secrets.COMDIA_PASSWORD }}
         run: |
+          if [ -n "$COMDIA_USER" ]; then echo "::add-mask::$COMDIA_USER"; fi
           python3 eis_tool.py fetch "$REFERENCE" --out work | tee fetch.log
           echo "FETCH_DAY=$(sed -n 's/.*--date //p' fetch.log)" >> "$GITHUB_ENV"
 

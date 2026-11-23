@@ -107,7 +107,12 @@ jobs:
           EIS_COUNTRY: DK
           LIMIT: ${{ inputs.limit }}
           TARGETS: ${{ inputs.targets }}
+          # The supplier account `docsource/comdia.py` opens Comdia tenders with: it presses
+          # Access to tender on each Comdia tender that reaches the fetch, which the buyer sees.
+          COMDIA_USER: ${{ secrets.COMDIA_USER }}
+          COMDIA_PASSWORD: ${{ secrets.COMDIA_PASSWORD }}
         run: |
+          if [ -n "$COMDIA_USER" ]; then echo "::add-mask::$COMDIA_USER"; fi
           printf '%s' "$TARGETS" > targets.txt
           echo "fetching the Danish window $DAY .. $DAY_TO, plus $(grep -c . targets.txt || true) watched procedure(s)"
           rc=0

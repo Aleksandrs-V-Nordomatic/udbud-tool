@@ -92,7 +92,7 @@ Two notices of one procedure in one window make one home; the older is named und
 udbud.dk holds none. Each notice links the platform the buyer runs the tender on. `docsource/`
 has one module per host, each answering `listing(urls)` and `download(entry)`:
 
-| module | host | without an account |
+| module | host | what is read |
 |---|---|---|
 | `ethics` | ethics.dk | every public file; records marked `accessRequired` are named |
 | `dalux` | dalux.com | every file of a public tender; four read-only RPC commands only |
@@ -100,7 +100,7 @@ has one module per host, each answering `listing(urls)` and `download(entry)`:
 | `byggeweb` | byggeweb.dk | every file, in two steps |
 | `eusupply` | eu-supply.com | names only — public ones too, see below |
 | `mercell` | permalink.mercell.com | names only |
-| `comdia` | comdia.com | nothing, not even names |
+| `comdia` | comdia.com | every file, under our supplier account — see below |
 
 Measured over the 174 competition notices of 3–14 Nov 2026: all files on 30% of tenders, 42% of
 the construction ones. ethics 481 of 481, Dalux 1 622 of 1 622, api.udbud.dk 18 of 18, Byggeweb 24
@@ -108,6 +108,37 @@ of 24.
 
 **A host that needs an account is a module that names files and downloads none.** When an
 account arrives for EU-Supply, Mercell or Comdia, that module is the only file that changes.
+Comdia's arrived on 23 Nov 2026; Mercell's terms forbid automated download, so Mercell stays a
+names-only module and a person opens the tender page.
+
+### Comdia, under an account
+
+Comdia shows "Documents 0" to everyone, signed in or not. The files open to a supplier that
+presses **Access to tender** on the tender page. `docsource/comdia.py`, in plain HTTP:
+
+1. **Signs in once per run** on `/login.aspx` with `COMDIA_USER` / `COMDIA_PASSWORD`. A refused
+   account is not asked again that run; a session that ends mid-run gets one fresh sign-in.
+2. **Opens the tender page** (`…/tenderinformationshow.aspx?Id=N`). If the company has no access
+   yet, it presses **Access to tender** (`lbRegisterTender`), then **Go to tender**
+   (`lbGoToTender`), which leads to the vendor page `/Site/vendor/user/tenderentity/show.aspx`.
+3. **Presses Download all** (`lbDownloadAll<k>`) and gets one ZIP of the tender.
+4. **Lists each member as a file**, its folder the group the buyer filed it under (the archive's
+   own top folder, the tender, is dropped), and serves each member's bytes from the archive held
+   in memory. `dk_fetch` asks its usual two questions and stores them as from any host.
+
+**The buyer sees it.** Access registers the company (SIA "Nordomatic") on the tender, the tender
+lands in My Comdia → My Tender/offer, and the vendor page marks each file downloaded. That was
+decided on 23 Nov 2026. It happens only for tenders that reach the fetch — recall-gate survivors
+and watched cards. **Show interest and Subscribe are never pressed**: the module refuses to post
+back any control but the sign-in, Access to tender, Go to tender and Download all.
+
+When it cannot read a tender — no account, a refused sign-in, a tender page that offers no Access
+to tender, an answer that is not an archive, an archive over 1 GB unpacked — the tender stays
+`gated` and the reason is the listing's note, in the home's `index.json` (`documents_note`).
+When the vendor page lists more files than the archive holds, the note says both counts. A link
+with no `Id=` is `unknown`. The module prints nothing: the run's log is public.
+
+`python3 tools/comdia_check.py` signs in and presses nothing else.
 
 Per-host rules that came from running it, kept beside the code:
 
@@ -189,7 +220,8 @@ document host. No schedule — the routine that reads the day starts it.
 `dk-fetch.yml` reads one tender by its procedure id, past the gate.
 
 Secrets: `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_DRIVE_ID`,
-`GRAPH_DEST_ROOT`, `DK_POLICY`. Variable: `TOOLCHAIN_IMAGE`, built by `image.yml`.
+`GRAPH_DEST_ROOT`, `DK_POLICY`, `COMDIA_USER`, `COMDIA_PASSWORD` (without the last two, Comdia
+tenders stay `gated` with a note). Variable: `TOOLCHAIN_IMAGE`, built by `image.yml`.
 
 ## Tests
 
