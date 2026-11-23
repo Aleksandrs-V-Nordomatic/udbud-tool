@@ -135,6 +135,25 @@ def report(label, status, url, headers, body):
              ext.group(1) if ext else None, len(body), body[:4]))
 
 
+def zipshape(data):
+    import collections, io, zipfile
+    z = zipfile.ZipFile(io.BytesIO(data))
+    infos = z.infolist()
+    files = [i for i in infos if not i.is_dir()]
+    print("  zip: %d entries, %d files, %d dir entries, utf8-flagged %d, unpacked %.1f MB"
+          % (len(infos), len(files), len(infos) - len(files),
+             sum(1 for i in infos if i.flag_bits & 0x800), sum(i.file_size for i in files) / 1048576.0))
+    depth = collections.Counter(i.filename.strip("/").count("/") for i in files)
+    print("  depth histogram:", dict(depth))
+    tops = collections.Counter(i.filename.split("/")[0] for i in files if "/" in i.filename)
+    print("  top-level folders: %d, files per folder %s" % (len(tops), sorted(tops.values())))
+    ext = collections.Counter(i.filename.rsplit(".", 1)[-1].lower()[:5] for i in files)
+    print("  extensions:", dict(ext.most_common(12)))
+    nonascii = sum(1 for i in files if any(ord(c) > 127 for c in i.filename))
+    print("  names with non-ASCII characters: %d; backslashes: %d" % (nonascii, sum("\\" in i.filename for i in files)))
+    print("  top-level folder name lengths:", sorted(len(t) for t in tops)[:30])
+
+
 def go_to_tender(op, url, page):
     print("== tender page", fold(urllib.parse.urlparse(url).path))
     i = page.find("lbGoToTender")
@@ -164,12 +183,12 @@ def deep(op, url, page):
     for a in alls[:1]:
         i = page.find(a.replace("$", "_"))
         print("  around download-all:", skeleton(page[max(0, i - 800):i + 400]))
-    if targets:
-        status, u, h, b = post(op, url, page, htmlmod.unescape(targets[0]))
-        report("first file", status, u, h, b)
+    print("  per-file targets unique:", len(set(targets)))
     for a in alls[:1]:
         status, u, h, b = post(op, url, page, a)
         report("download all", status, u, h, b)
+        if b[:2] == b"PK":
+            zipshape(b)
         if b[:2] != b"PK":
             print("  download-all answer skeleton:", skeleton(b.decode("utf-8", "replace")[:3000]))
 
