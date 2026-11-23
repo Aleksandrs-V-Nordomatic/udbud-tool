@@ -119,7 +119,7 @@ def hidden_fields(page):
 def controls(page):
     """The control names the page's links post back to, unescaped."""
     return [htmlmod.unescape(t) for t in
-            re.findall(r"__doPostBack\((?:&#39;|')([^&']+)(?:&#39;|')", page)]
+            re.findall(r"__doPostBack\((?:&#39;|')(.*?)(?:&#39;|')", page)]
 
 
 def signed_in(page):
