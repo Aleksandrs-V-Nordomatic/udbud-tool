@@ -1,0 +1,30 @@
+name: comdia-probe
+
+# Temporary: does a plain-HTTP sign-in to Comdia work from a runner, and what shape do the
+# signed-in pages have. Prints shapes and counts only -- the log is public.
+
+on:
+  workflow_dispatch:
+    inputs:
+      urls:
+        description: "Comdia pages to look at once signed in, space-separated"
+        required: false
+        default: "https://www.comdia.com/energinet/tenderinformationshow.aspx?Id=842607 https://www.comdia.com/Site/vendor/user/tenderentity/show.aspx?Id=144703"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Sign in and look
+        env:
+          COMDIA_USER: ${{ secrets.COMDIA_USER }}
+          COMDIA_PASSWORD: ${{ secrets.COMDIA_PASSWORD }}
+          URLS: ${{ inputs.urls }}
+        run: |
+          echo "::add-mask::$COMDIA_USER"
+          python3 tools/comdia_probe.py $URLS
