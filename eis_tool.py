@@ -201,6 +201,8 @@ def main(argv=None):
               % (done["ref"], done["pid"], done["documents"], done["catalogued"],
                  done["bytes"] / 1048576.0, done["documents_available"],
                  done["documents_host"], done["home"]))
+        if done["index"].get("documents_note"):
+            print("  the host said: %s" % done["index"]["documents_note"])
         print("  deliver it with: python3 deliver_dk.py --out %s --date %s" % (args.out, folder))
         return 0
 
