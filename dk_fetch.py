@@ -273,6 +273,8 @@ def main(argv=None):
     print("%s (%s): %d of %d document(s), %.1f MB, documents %s on %s -> %s"
           % (done["ref"], done["pid"], done["documents"], done["catalogued"],
              done["bytes"] / 1048576.0, done["documents_available"], done["documents_host"], done["home"]))
+    if done["index"].get("documents_note"):
+        print("  the host said: %s" % done["index"]["documents_note"])
     return 0
 
 
