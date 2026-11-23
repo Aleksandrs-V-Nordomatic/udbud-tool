@@ -96,13 +96,82 @@ def main():
     print("after sign-in: status %s, landed on %s" % (status, fold(urllib.parse.urlparse(url).path)))
     print("cookies:", sorted(c.name for c in jar))
     shape("after sign-in", url, page)
-    for tender in sys.argv[1:]:
-        status, url, page = get(op, tender)
-        shape("tender page", url, page.replace(user, "<account>"))
-        for link in sorted(set(htmlmod.unescape(h) for h in re.findall(r'href="([^"]*tenderentity[^"]*)"', page, re.I))):
-            status, url, vpage = get(op, urllib.parse.urljoin(tender, link))
-            shape("vendor page", url, vpage.replace(user, "<account>"))
+    for target in sys.argv[1:]:
+        status, url, page = get(op, target)
+        if "tenderinformationshow" in target:
+            go_to_tender(op, url, page)
+        else:
+            deep(op, url, page)
     return 0
+
+
+def skeleton(fragment):
+    """Tags and their id/class/onclick/href kept, every text node replaced by its length."""
+    fragment = re.sub(r"(?s)<script.*?</script>", "<script/>", fragment)
+    def text(m):
+        t = m.group(1).strip()
+        return ">" + ("[%d]" % len(t) if t else "") + "<"
+    out = re.sub(r">([^<]*)<", text, fragment)
+    out = re.sub(r'\s(title|alt|value|data-original-title)="[^"]*"', r' ="?"', out)
+    return fold(out)
+
+
+def post(op, url, page, target):
+    form = hidden(page)
+    form.update({"__EVENTTARGET": target, "__EVENTARGUMENT": ""})
+    req = urllib.request.Request(url, data=urllib.parse.urlencode(form).encode(),
+                                 headers={"User-Agent": UA,
+                                          "Content-Type": "application/x-www-form-urlencoded"})
+    with op.open(req, timeout=300) as resp:
+        return resp.status, resp.geturl(), dict(resp.headers), resp.read()
+
+
+def report(label, status, url, headers, body):
+    disp = headers.get("Content-Disposition", "")
+    ext = re.search(r"\.([A-Za-z0-9]{1,5})\"?\s*$", disp)
+    print("  %s: status %s -> %s, type %s, disposition %s (ext %s), %d bytes, head %r"
+          % (label, status, fold(urllib.parse.urlparse(url).path) + ("?Id=" + url.split("Id=")[-1][:8] if "Id=" in url else ""),
+             headers.get("Content-Type"), disp.split(";")[0] if disp else None,
+             ext.group(1) if ext else None, len(body), body[:4]))
+
+
+def go_to_tender(op, url, page):
+    print("== tender page", fold(urllib.parse.urlparse(url).path))
+    i = page.find("lbGoToTender")
+    print("  around lbGoToTender:", skeleton(page[max(0, i - 600):i + 300]))
+    status, url2, headers, body = post(op, url, page, "ctl00$ctl00$cphMain$cphMain$lbGoToTender")
+    report("lbGoToTender", status, url2, headers, body)
+
+
+def deep(op, url, page):
+    print("== vendor page", fold(urllib.parse.urlparse(url).path), len(page))
+    vs = hidden(page).get("__VIEWSTATE", "")
+    print("  viewstate bytes:", len(vs))
+    heads = re.findall(r"(?s)<th[^>]*>(.*?)</th>", page)
+    print("  table headers:", sorted(set(re.sub(r"<[^>]+>|\s+", " ", h).strip() for h in heads))[:40])
+    grids = re.findall(r'id="([^"]*gvDocument)"', page)
+    print("  document grids: %d" % len(grids))
+    for g in grids[:3]:
+        print("    ", fold(g))
+    for g in grids[:2]:
+        i = page.find('id="%s"' % g)
+        print("  grid %s skeleton:" % fold(g))
+        print("   ", skeleton(page[max(0, i - 1500):i + 4000]))
+    targets = re.findall(r"__doPostBack\((?:&#39;|')([^&']+lbDownload[^&']*)", page)
+    print("  per-file download targets:", len(targets))
+    alls = sorted(set(re.findall(r"__doPostBack\((?:&#39;|')([^&']+lbDownloadAll[^&']*)", page)))
+    print("  download-all targets:", [fold(a) for a in alls])
+    for a in alls[:1]:
+        i = page.find(a.replace("$", "_"))
+        print("  around download-all:", skeleton(page[max(0, i - 800):i + 400]))
+    if targets:
+        status, u, h, b = post(op, url, page, htmlmod.unescape(targets[0]))
+        report("first file", status, u, h, b)
+    for a in alls[:1]:
+        status, u, h, b = post(op, url, page, a)
+        report("download all", status, u, h, b)
+        if b[:2] != b"PK":
+            print("  download-all answer skeleton:", skeleton(b.decode("utf-8", "replace")[:3000]))
 
 
 if __name__ == "__main__":
