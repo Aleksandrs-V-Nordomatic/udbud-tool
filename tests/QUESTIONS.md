@@ -142,3 +142,32 @@ For `test_dk_day_newest.py`, written without running it: no tool in the room exe
 10. **Existing tests:** `test_dk_day.py` and `test_dk_day_ted.py` do not patch `dk_targets.procedure`.
     In `test_dk_day.py` the lookup is answered with the whole window, where every row has the same
     date, so nothing there should win. None contradicts the spec.
+
+## Rows counted as distinct notices
+
+For `test_dk_targets_distinct.py`, written without running it: no tool in the room executes code.
+
+1. **A single day short with no repeat** (an empty page before the total): is it asked four times
+   too, or does it raise at once? The README's "a single day that is still short is asked up to four
+   times" reads as four times. **Existing tests that conflict with that reading:**
+   `test_dk_targets.py`, `test_fewer_rows_than_the_count_is_truncated`, and `test_dk_day.py`,
+   `test_a_truncated_window_is_a_failed_discovery_with_its_reason`. Both script two calls for a
+   single day (`side_effect` with two answers), so a second pass meets `StopIteration`. The new test
+   asserts only the raise, not the number of passes. Neither existing test was changed.
+2. **A window over several days short with no repeat:** does it raise at once, or fall back to single
+   days? The README names the fallback only for a window "that holds a repeat". Not tested.
+3. **A repeat although every distinct row is held** (more rows handed out than the total): is the
+   window whole, or is it read again? Not tested.
+4. **More distinct rows than the total:** accepted, or `Truncated`? Not tested.
+5. **The total changes** between the pages or the passes of one read: which total is the proof, and
+   which is returned? Not tested; every stand-in holds one total per window.
+6. **The single days' totals do not add up to the window's total** after the fallback: `Truncated`,
+   or the days' word? In the tests they always add up, except that a day stays short.
+7. **Rows of the first, wide read in the fallback:** are they added to the days' rows, so that a row
+   a day leaves out but the wide read held completes it? "Read again day by day" does not say. In
+   the tests the missing row is missing from the wide read too.
+8. **In the fallback, a row inside the window but not of the single day asked:** `OutsideWindow`? The
+   tests use a row outside both.
+9. **The order of the returned rows** after a repeat is not stated; the tests compare them sorted.
+10. **Which copy is kept** when two rows share `noticeId` and `noticeVersion` but differ elsewhere
+    (for example in `noticePublicationNumber`)? Not tested.
