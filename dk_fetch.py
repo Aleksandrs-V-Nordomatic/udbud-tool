@@ -194,7 +194,7 @@ def fetch(target, out_root, document=None, with_text=True, previous=None):
 
     index = {
         "schema": "index/1", "pid": pid, "ref": target.get("ref"), "country": "DK",
-        "kind": target.get("kind"), "source": "udbud.dk",
+        "kind": target.get("kind"), "source": target.get("source") or "udbud.dk",
         "notice_type": target.get("subtype"),
         "link": target.get("link"), "link_verified": target.get("link_verified"),
         "documents_link": target.get("documents_url"),
@@ -252,6 +252,7 @@ def fetch(target, out_root, document=None, with_text=True, previous=None):
             "documents": len(records), "catalogued": listed,
             "withheld": len(withheld) + len(found.get("gated") or []), "uncatalogued": 0,
             "documents_available": available, "documents_host": found.get("host"),
+            "host_failed": found.get("note") if found.get("failed") else None,
             "link_verified": target.get("link_verified"), "bytes": total, "index": index,
             "state": state, "title": target.get("title"), "buyer": target.get("buyer"),
             "deadline": target.get("deadline"), "value": target.get("value"),

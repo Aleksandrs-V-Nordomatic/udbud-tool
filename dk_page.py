@@ -296,6 +296,9 @@ def notice_markdown(target, document):
     html = (document or {}).get("htmlDA")
     if html:
         lines += ["## Bekendtgørelsen", "", html_markdown(html)]
+    text = (document or {}).get("text")
+    if text and not html:                      # TED's rendering, for a notice udbud.dk lacks
+        lines += ["## Bekendtgørelsen", "", text]
     return "\n".join(lines).rstrip() + "\n"
 
 

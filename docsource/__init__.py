@@ -67,7 +67,7 @@ def listing(urls):
     try:
         found = module.listing(urls)
     except Exception as exc:                  # one host's outage must not lose the tender
-        found = {"access": "unknown", "files": [], "gated": [],
+        found = {"access": "unknown", "files": [], "gated": [], "failed": True,
                  "note": "the listing failed: %s: %s" % (type(exc).__name__, str(exc)[:160])}
     found.setdefault("files", [])
     found.setdefault("gated", [])

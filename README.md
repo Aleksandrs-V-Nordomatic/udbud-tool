@@ -144,7 +144,11 @@ Per-host rules that came from running it, kept beside the code:
 
 - **Dalux** exposes write commands to anonymous callers. `docsource/dalux.py` refuses any command
   outside `IsTenderPublic`, `GetTenderInformation`, `GetTenderShardUrl`, `GetFileList`. Files come
-  from `node1.field.dalux.com`; the same path on `node1.build` is an HTML shell under a 200.
+  from `node1.field.dalux.com`; the same path on `node1.build` is an HTML shell under a 200. Dalux
+  refuses a client older than it wants (`result` 9, `Versions below 2026070 not supported`): the
+  call takes the version the refusal names, keeps it in `CLIENT["version"]` for the run, and asks
+  once more. Any other answer with a non-zero `result` raises `Refused` and is never read as a
+  tender that is not public; a message saying *cannot be accessed publicly* is, and is `gated`.
 - **EU-Supply** serves its public files from `/app/docmgmt`, which its robots.txt disallows, so
   nothing is downloaded there. It also drew 502 on six parallel requests; requests go one at a
   time with a cookie session.
@@ -192,6 +196,16 @@ Two controls, both hard. `day.json` carries the report and `tools/day_verdict.py
 |---|---|
 | 1 | rows held == `totaltAntalResultater`, and every row inside the window asked for |
 | 2 | per day, the TED publication numbers with a Danish buyer == udbud.dk's EU numbers, both ways |
+
+A notice only TED holds is read from TED (`dk_ted.py`) and joins the day's targets: the same key
+(`procedure-identifier`), the same gate, the same home, `source` `ted.europa.eu`. Control 2 then
+names it in `only_ted` and in `read_from_ted`, and it is no longer a problem; one TED does not hand
+over still is. `coverage.from_ted` counts them and `coverage.rows_held` stays udbud.dk's. A watched
+tender is looked up on TED only when udbud.dk holds no notice of its procedure at all. Measured on
+2026-11-23: udbud.dk 28, TED 30, both read from TED.
+
+A platform that fails while its listing is asked leaves the tender `unknown`, is named in
+`day.json` `host_failures` (`ref`, `pid`, `host`, `note`), and makes `tools/day_verdict.py` exit 1.
 
 Measured: 2026-09-02 42 = 42 rows, EU 40 = TED 40; 2026-11-13 39 = 39, 36 = 36; Sunday 2026-08-30
 0 = 0. A national notice has no TED number; control 1 holds it.

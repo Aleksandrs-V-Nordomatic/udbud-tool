@@ -31,6 +31,17 @@ FILE = "https://node1.field.dalux.com/service/web/downloadfile/%s/areafilerevisi
 READ_ONLY = frozenset({"IsTenderPublic", "GetTenderInformation", "GetTenderShardUrl", "GetFileList"})
 TID = re.compile(r"(TID-\d+)")
 
+# DALUX RAISES THE OLDEST CLIENT IT ANSWERS, WITHOUT NOTICE. 2026050 worked on 16 Nov 2026 and was
+# refused on 24 Nov: `{"result": 9, "message": "Versions below 2026070 not supported"}`. The refusal
+# names the version it wants, so the call takes it and asks once more.
+CLIENT = {"version": 2026070}
+TOO_OLD = re.compile(r"Versions below (\d+) not supported")
+NOT_PUBLIC = re.compile(r"cannot be accessed publicly", re.I)
+
+
+class Refused(RuntimeError):
+    """Dalux answered, and the answer was an error rather than a fact about the tender."""
+
 
 def _now():
     return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(
@@ -41,7 +52,7 @@ def _envelope(command, params, tid):
     """The envelope the public page sends: a version, the calling page, a client block, and a
     `time` whose last two digits are a checksum of the body."""
     now = _now() + "Z"
-    body = {"version": 2026050, "command": command, "callingUrl": CALLER % tid,
+    body = {"version": CLIENT["version"], "command": command, "callingUrl": CALLER % tid,
             "constructor": {"request": {"client": {"appVersion": "1.0.0", "build": "1.0.0",
                                                    "deviceID": None, "deviceOS": "Win32",
                                                    "devicePlatform": "web(angular)_Chrome_128.0.0.0",
@@ -56,6 +67,20 @@ def _envelope(command, params, tid):
 def _call(command, params, tid):
     if command not in READ_ONLY:
         raise PermissionError("Dalux command %r is not one of the four read-only ones" % command)
+    answer = _send(command, params, tid)
+    wanted = TOO_OLD.search(str(answer.get("message") or ""))
+    if wanted and int(wanted.group(1)) > CLIENT["version"]:
+        CLIENT["version"] = int(wanted.group(1))
+        answer = _send(command, params, tid)
+    # AN ERROR IS NOT "NOT PUBLIC". Read as one, a refused client turns every Dalux tender into a
+    # gated one and the night stays green.
+    message = str(answer.get("message") or "")
+    if answer.get("result") and not NOT_PUBLIC.search(message):
+        raise Refused("Dalux answered %s: %s" % (answer.get("result"), message[:120]))
+    return answer
+
+
+def _send(command, params, tid):
     raw = common.fetch(RPC, data=_envelope(command, params, tid),
                        headers={"Content-Type": "application/json",
                                 "Accept": "application/json, text/plain, */*",
@@ -81,9 +106,12 @@ def listing(urls):
     tid = m.group(1)
     public = _call("IsTenderPublic", {"tenderLinkIdentifier": tid}, tid).get("value")
     if public is not True:
-        return {"access": "gated", "tender_id": tid,
+        return {"access": "gated", "files": [], "tender_id": tid,
                 "note": "Dalux says this tender cannot be accessed publicly"}
     answer = _call("GetFileList", {"tenderLinkIdentifier": tid}, tid)
+    if NOT_PUBLIC.search(str(answer.get("message") or "")):
+        return {"access": "gated", "files": [], "tender_id": tid,
+                "note": "Dalux says this tender cannot be accessed publicly"}
     folder = (answer.get("value") or {}).get("folder")
     if not folder:
         return {"access": "unknown", "tender_id": tid,

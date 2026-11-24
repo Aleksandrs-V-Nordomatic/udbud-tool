@@ -31,6 +31,7 @@ import dk_fetch
 import dk_page
 import dk_recon
 import dk_targets
+import dk_ted
 
 try:
     import changes as changes_mod
@@ -74,6 +75,17 @@ def _summary(target):
                                        "notice_id", "npn", "form_code")}
 
 
+def _watched_on_ted(reference):
+    """A watched tender udbud.dk knows nothing about, as TED holds it.
+
+    Only when the portal has no notice of the procedure at all. One it knows and no longer lists as
+    live was awarded or withdrawn, and TED's old competition notice must not bring it back.
+    """
+    if dk_targets.procedure(reference):
+        return None, None
+    return dk_ted.procedure(reference)
+
+
 def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_to=None,
         reconcile=True, with_text=True):
     run_id = run_id or time.strftime("%Y%m%dT%H%M%S", time.gmtime())
@@ -93,6 +105,25 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
 
     failed = []
     documents = {}
+
+    # WHAT TED HOLDS AND udbud.dk DOES NOT IS READ FROM TED, so a notice the portal never pulled is
+    # a tender in the day and not a line in a report.
+    proof = None
+    if reconcile and not discovery_error:
+        proof = dk_recon.run(date_from, date_to, rows=raw, count=index_count)
+    from_ted = []
+    for number in dk_recon.only_ted(proof):
+        try:
+            target, document = dk_ted.one(number)
+        except Exception as exc:
+            dk_page.log("  TED did not hand over %s: %s" % (number, str(exc)[:120]))
+            continue
+        if target is not None:
+            documents[target["notice_id"]] = document
+            from_ted.append(target)
+    if from_ted:
+        dk_recon.taken(proof, [t["record"]["publication-number"] for t in from_ted])
+
     for target in targets:
         try:
             document = dk_page.detail(target["notice_id"], target["notice_version"], target["npn"])
@@ -106,6 +137,7 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
                            "watched": False,
                            "reason": target.get("detail_error") or "the detail answered 404"})
 
+    targets = targets + from_ted
     live_all = [t for t in targets if dk_page.is_live(t) and documents.get(t["notice_id"]) is not None]
     closed = [_summary(t) for t in targets if t["kind"] in dk_page.CLOSE_KINDS]
     plans = [_summary(t) for t in targets if t["kind"] in ("plan", "consultation")]
@@ -135,6 +167,15 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
             failed.append({"ref": reference, "pid": None, "kind": None, "watched": True,
                            "reason": "the portal did not answer: %s" % str(exc)[:150]})
             continue
+        document = None
+        if row is None:
+            try:
+                row, document = _watched_on_ted(reference)
+            except Exception as exc:
+                failed.append({"ref": reference, "pid": None, "kind": None, "watched": True,
+                               "reason": "udbud.dk holds no live notice and TED did not answer: %s"
+                                         % str(exc)[:150]})
+                continue
         if row is None:
             failed.append({"ref": reference, "pid": None, "kind": None, "watched": True,
                            "reason": "no live notice for this procedure -- awarded, cancelled "
@@ -146,12 +187,14 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
                     t["watched"] = True
             continue
         row["watched"] = True
-        documents[row["notice_id"]] = dk_page.detail(row["notice_id"], row["notice_version"], row["npn"])
+        if document is None:
+            document = dk_page.detail(row["notice_id"], row["notice_version"], row["npn"])
+        documents[row["notice_id"]] = document
         live.append(row)
         known.add(row["pid"])
 
     rules = policy_mod.load_policy(policy) if policy_mod is not None else None
-    moves, delivered, gated = [], [], []
+    moves, delivered, gated, host_failures = [], [], [], []
     for target in live:
         pid = target["pid"]
         if rules is not None and not target.get("watched") and policy_mod.outside_scope(target, rules):
@@ -170,6 +213,9 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
                            "watched": bool(target.get("watched")),
                            "reason": "%s: %s" % (type(exc).__name__, str(exc)[:200])})
             continue
+        if done.get("host_failed"):
+            host_failures.append({"ref": target["ref"], "pid": pid, "host": done["documents_host"],
+                                  "note": done["host_failed"]})
         record = None
         if changes_mod is not None and done.get("state") is not None:
             record = changes_mod.diff(previous_state, done["state"], date=folder, run_id=run_id)
@@ -205,9 +251,6 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
     lost_window = [f for f in failed if not f.get("watched")]
     lost_watch = [f for f in failed if f.get("watched")]
 
-    proof = None
-    if reconcile and not discovery_error:
-        proof = dk_recon.run(date_from, date_to, rows=raw, count=index_count)
     no_deadline = [m["ref"] for m in moves if m["kind"] == "tender" and not m["deadline"]]
     by_access = {}
     for row in delivered:
@@ -234,7 +277,8 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
     day = dict(common, **{
         "schema": "day/1", "source": "udbud.dk",
         "changes_path": "%s/changes.json" % folder, "tenders_path": "tenders",
-        "coverage": {"index_count": index_count, "rows_held": len(targets), "by_form": kinds,
+        "coverage": {"index_count": index_count, "rows_held": len(raw),
+                     "from_ted": len(from_ted), "by_form": kinds,
                      "live": len(live), "targets": len(live), "delivered": len(delivered),
                      "gated": len(gated), "failed": len(lost_window),
                      "watch_holes": len(lost_watch), "closed": len(closed), "plans": len(plans)},
@@ -244,6 +288,7 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
                        bytes=sum(t["bytes"] for t in delivered)),
         "documents_available": by_access,
         "reconciliation": proof,
+        "host_failures": host_failures,
         "unverified_links": [],
         "tenders_without_deadline": no_deadline,
         "lost": failed,

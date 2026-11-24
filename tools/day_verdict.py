@@ -41,6 +41,11 @@ def verdict(day):
             lines.append("  LOST %s: %s" % (row.get("ref") or row.get("pid"),
                                             row.get("reason")))
 
+    for row in day.get("host_failures") or []:
+        ok = False
+        lines.append("  HOST FAILED %s for %s: %s -- its documents were not read"
+                     % (row.get("host"), row.get("ref"), row.get("note")))
+
     for ref in day.get("unverified_links") or []:
         ok = False
         lines.append("  UNVERIFIED LINK %s -- the detail API does not agree that this notice is "

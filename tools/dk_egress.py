@@ -11,11 +11,15 @@ public documents page (never /app/docmgmt, which its robots.txt disallows).
 The hosts' answers can change as tenders close -- a list grows by a corrigendum, a file is
 withdrawn -- so a red draw is a reason to look, and the numbers are re-measured when one is.
 """
-import datetime
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from docsource import dalux  # noqa: E402
 
 UA = "Mozilla/5.0 (compatible; eis-tool)"
 # Measured from the laptop on 2026-11-16. A runner that gets anything else has found a difference.
@@ -61,28 +65,12 @@ def ted_total(day):
 
 
 def dalux_public(tid):
-    # The same envelope the public tender page sends; IsTenderPublic only.
-    base = "https://node1.field.dalux.com/service/EntryPoints/Web/PublicPage/PublicService.aspx"
-    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(
-        timespec="milliseconds") + "Z"
-    w = {"version": 2026050, "command": "IsTenderPublic",
-         "callingUrl": "https://node1.build.dalux.com/da-dk/public/tender/" + tid,
-         "constructor": {"request": {"client": {"appVersion": "1.0.0", "build": "1.0.0",
-                                                "deviceID": None, "deviceOS": "Win32",
-                                                "devicePlatform": "web(angular)_Chrome_128.0.0.0",
-                                                "utcTime": now, "localTime": now},
-                                     "session": {"auth": None, "flags": []}, "view": None}},
-         "parameters": {"tenderLinkIdentifier": tid}}
-    e = json.dumps(w, separators=(",", ":"))
-    t = sum(ord(c) for c in e[:100000]) % 100
-    stamp = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None).isoformat(
-        timespec="milliseconds") + "%02d" % t + "Z"
-    st, b = req(base, ('{"time":"%s",' % stamp + e[1:]).encode(),
-                {"Content-Type": "application/json", "Origin": "https://node1.build.dalux.com"})
+    # The reader's own call, so the probe cannot pass with a client the reader does not send.
     try:
-        return st, json.loads(b).get("value")
-    except Exception:
-        return st, None
+        answer = dalux._call("IsTenderPublic", {"tenderLinkIdentifier": tid}, tid)
+        return 200, answer.get("value")
+    except Exception as exc:
+        return "ERR " + type(exc).__name__, None
 
 
 def magic(url):

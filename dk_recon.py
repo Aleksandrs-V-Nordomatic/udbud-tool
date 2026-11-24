@@ -92,6 +92,33 @@ def run(date_from, date_to=None, rows=None, count=None, ted=True):
             "ted": per_day if ted else None, "problems": problems}
 
 
+def only_ted(report):
+    """The publication numbers TED holds for the window and udbud.dk does not."""
+    return [n for day in (report or {}).get("ted") or [] for n in day.get("only_ted") or []]
+
+
+def taken(report, numbers):
+    """The report once `numbers` were read from TED itself.
+
+    A notice udbud.dk never pulled stays named in `only_ted`; it stops being a hole when the day
+    holds it. What was not read stays a problem, and so does every difference the other way.
+    """
+    numbers = {_norm(n) for n in numbers}
+    for day in (report or {}).get("ted") or []:
+        mine = [n for n in day.get("only_ted") or [] if n in numbers]
+        if not mine:
+            continue
+        missing = len(day["only_ted"]) - len(mine)
+        day["read_from_ted"] = mine
+        report["problems"].remove("%s: %d only on udbud.dk, %d only on TED"
+                                  % (day["day"], len(day["only_udbud"]), len(day["only_ted"])))
+        if day["only_udbud"] or missing:
+            report["problems"].append("%s: %d only on udbud.dk, %d only on TED"
+                                      % (day["day"], len(day["only_udbud"]), missing))
+    report["ok"] = not report["problems"]
+    return report
+
+
 def line(report):
     if report.get("index_count") is None and report.get("problems"):
         return "coverage: %s" % "; ".join(report["problems"])
