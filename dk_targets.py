@@ -11,6 +11,12 @@ applied, which is the shape a dropped filter takes on every portal in this famil
 THE DATES ARE DANISH CALENDAR DATES, NOT UTC. udbud.dk filters and prints `publiceringsdato` as
 a date in Copenhagen. A night that asks for "yesterday" asks for yesterday in Denmark.
 
+ONLY DISTINCT NOTICES ARE COUNTED. The portal sorts by publication date, and rows of one date have
+no order between pages: a window over one page repeats some and leaves others out, while the sum
+still equals the total. Measured on 24 Nov 2026 for 16-18 November: 123 rows, 110 distinct, then
+116 a minute later; each day alone, on one page, gave all 123. So a window with a repeat is read
+day by day, and a day too big for one page is asked again until every distinct notice is in.
+
 WEEKENDS ARE EMPTY. Three weekend days of three measured in November carried 0 notices, and so
 did the Sunday 2026-08-30 in September. So an empty window that covers only Saturday and Sunday
 is a normal empty day, and an empty window over a weekday is a broken crawl until shown
@@ -48,9 +54,11 @@ def publishing_days(date_from, date_to):
             if datetime.date.fromisoformat(d).weekday() < 5]
 
 
-def rows(date_from, date_to=None):
-    """`(count, rows)` for the window: the portal's own total and every row it holds."""
-    date_to = date_to or date_from
+READS = 4                         # how often a day bigger than one page is asked before giving up
+
+
+def _read(date_from, date_to):
+    """`(total, rows)` of one pass over the pages, repeats and all."""
     inside = set(days(date_from, date_to))
     held, page, total = [], 1, None
     while True:
@@ -64,12 +72,37 @@ def rows(date_from, date_to=None):
                                     "filter was not applied" % (date_from, date_to, published))
         held += got
         if not got or total is None or len(held) >= total:
-            break
+            return total, held
         page += 1
-    if total is None or len(held) != total:
+
+
+def _distinct(held, into=None):
+    """The rows by notice and version, first one kept, added to `into`."""
+    found = {} if into is None else into
+    for row in held:
+        found.setdefault((row.get("noticeId"), row.get("noticeVersion")), row)
+    return found
+
+
+def rows(date_from, date_to=None):
+    """`(count, rows)` for the window: the portal's own total and every distinct row it holds."""
+    date_to = date_to or date_from
+    total, held = _read(date_from, date_to)
+    if total is None or len(held) < total:
         raise Truncated("the portal counts %s rows in %s..%s and handed out %d"
                         % (total, date_from, date_to, len(held)))
-    return total, held
+    found = _distinct(held)
+    if len(found) < len(held) and date_to != date_from:
+        for day in days(date_from, date_to):
+            _distinct(rows(day)[1], found)
+    reads = 1
+    while len(found) < total and date_to == date_from and reads < READS:
+        _distinct(_read(date_from, date_to)[1], found)
+        reads += 1
+    if len(found) != total:
+        raise Truncated("the portal counts %s rows in %s..%s and handed out %d distinct"
+                        % (total, date_from, date_to, len(found)))
+    return total, list(found.values())
 
 
 def window(date_from, date_to=None):

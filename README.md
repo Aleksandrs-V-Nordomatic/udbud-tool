@@ -213,6 +213,12 @@ out of the window, and a portal that does not answer keeps the window's notice.
 A platform that fails while its listing is asked leaves the tender `unknown`, is named in
 `day.json` `host_failures` (`ref`, `pid`, `host`, `note`), and makes `tools/day_verdict.py` exit 1.
 
+Rows are counted as distinct notices (`noticeId` with `noticeVersion`): between pages the portal
+repeats some rows of one date and leaves others out, and the sum still equals the total. A window
+over several days that holds a repeat is read again day by day; a single day short because of repeats
+is asked up to four times in all, adding what each pass brings, and then raises `Truncated`. Fewer
+rows than the total, with no repeat, raises at once.
+
 Measured: 2026-09-02 42 = 42 rows, EU 40 = TED 40; 2026-11-13 39 = 39, 36 = 36; Sunday 2026-08-30
 0 = 0. A national notice has no TED number; control 1 holds it.
 
