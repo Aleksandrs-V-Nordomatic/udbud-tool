@@ -240,3 +240,23 @@ existing test mentions iBinder, and none in `test_docsource.py` was found to con
     so only the notes with a code or a count are checked.
 15. **The number of requests per call** is not tested where a call fails, since `tries` belongs to
     `common.fetch`.
+
+## One tender fetched by hand
+
+For `test_dk_live_notice.py`, written without running it: no tool in the room executes code. No
+existing test was found to contradict the README.
+
+1. **A live notice of the portal whose detail is gone** (`dk_page.detail` answers `None`): `(None,
+   None)`, the target with `None`, or an error? Not tested.
+2. **Errors.** That an error of the portal and of TED is raised comes from the brief; the README does
+   not say so. The tests raise `net.Unreachable` only, and take it that a portal that raises does
+   not "know nothing", so TED is not asked.
+3. **`dk_targets.one` answers `None` while `dk_targets.procedure` lists a live notice** (its detail
+   is unreadable): the portal knows it, so TED is not looked at? The test lists an award only.
+4. **A procedure only TED holds whose newest notice there is an award or a plan:** is it fetched by
+   hand? `dk_ted.procedure` decides it, or `live_notice`? Not tested.
+5. **An empty reference**, and the `DK:` prefix: the tests take the reference to be passed on as
+   given to all the lookups, as the brief's interface prints them.
+6. **Is the target handed back unchanged?** The tests compare TED's target whole, and the portal's by
+   `notice_id` and `pid` only. A mark such as `watched` is not stated.
+7. **`dk-fetch.yml` and the command it runs** when the answer is `(None, None)`: not tested.
