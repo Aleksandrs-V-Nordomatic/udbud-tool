@@ -58,3 +58,62 @@ tests in `test_docsource.py` don't assert any of them; each one needs an answer 
 18. `main` usage: printed to stdout or stderr? The tests accept either.
 19. `tools/comdia_check.py` isn't tested: no test imports `tools/`, and the brief gives only its
     one line (`main(["--check"])`). Should it get a test, and how should it be imported?
+
+# Open questions — the Dalux client version, notices only TED holds, host failures
+
+For `test_dalux_refused.py`, `test_dk_ted.py`, `test_dk_recon_ted.py` and `test_dk_day_ted.py`.
+The tests were written without running them: no tool in the room executes code.
+
+## Existing tests to look at (none contradicts the spec)
+1. `test_dk_day.py`, **`test_a_ted_difference_makes_the_day_incomplete`**: the new TED lookup will
+   meet `net.open_url` raising `AssertionError`. The test passes only if a lookup raising anything
+   leaves the day incomplete rather than crashing it. Is that the intended breadth of "does not
+   hand over"? And **`test_a_watched_procedure_with_no_live_notice_is_a_watch_hole`** patches
+   `dk_targets.one` only, so a procedure lookup there is answered with the whole window.
+
+## What the tests assume, for want of a statement
+2. **What `net.get_text` returns** (text, or text with headers like `get_json`) is not stated. The
+   tests take the shape from the real function, called with `opener=` as `test_net.py` calls
+   `net.get_json`. If `get_text` takes no `opener`, `setUp` of the two TED files must change.
+3. **`ref` of a TED notice** is taken to be the padded number, as on a udbud.dk EU row
+   (`test_dk_page.py`).
+4. **`published`** is taken to be the date without its offset, as on a udbud.dk row.
+5. **`read_from_ted`** is taken to sit beside `only_ted` in the day's entry of `report["ted"]`.
+6. **No procedure id** is taken to follow "Three ids": `int-<buyer>-<internal id>`, then
+   `notice-<noticeId>`. Two notices with the same buyer *and* the same internal id would share a
+   home by that rule, while the brief says two notices with no procedure id must not. Which wins?
+   And what keys a notice with no `notice-identifier` either? Neither is tested.
+7. **TED's search answer** is taken to be `{"notices": [...], "totalNoticeCount": n}`, as in
+   `test_dk_recon.py`. Does `dk_ted.search` page? Not tested. The day tests' TED stand-in finds a
+   record by its unpadded number or its procedure id appearing in the query.
+8. **`titles`** of a TED notice is taken to be the Danish then the English title, as on a row.
+9. `day_verdict.main` is taken to exit 0 when the verdict is ok.
+
+## Dalux
+10. Does a refused retry leave the version it named in `CLIENT["version"]`? Only the number of
+    requests and the raise are tested.
+11. Is a not-public message raised or returned by `_call`? Only the listing is tested.
+12. The numeric `result` of a not-public answer is not stated; the tests use 3.
+
+## TED
+13. `target["record"]` and `document["record"]`: the raw record, or the number? Only the key is
+    tested, and that a gated row does not carry it.
+14. `procedure_id` as printed, or lower-cased? `link_verified` true or false? `notice_version` `1`
+    or `"01"`? `form_code` values? Only that the keys are there.
+15. **A date without a time**: `2027-01-22` or `2027-01-22+01:00`? The tests only refuse an hour.
+16. Fewer times than dates (two lots, one time): which date gets it? Not tested.
+17. `form-type` values other than competition and result (planning, change, dir-awa-pre,
+    cont-modif, consultation): the README's table? Not tested.
+18. `text` when the rendering fails: `""` or `None`? The tests accept either.
+19. Does `procedure` raise or answer `(None, None)` when TED cannot be reached? For a watched
+    tender, is that a watch hole or an incomplete day?
+
+## The day
+20. A **TED-only award or plan**: does it go to `closed` / `plans`, and count in `from_ted`?
+21. A TED-only notice whose procedure already has a row in the window: is it one home, with the
+    older notice under `superseded`?
+22. Does `from_ted` count a watched tender read from TED? Not tested.
+23. Do host failures make `day["complete"]` false, or only the verdict? Not tested.
+24. Is `host_failures` present and `[]` when there are none? The tests accept absent.
+25. `taken`'s `numbers` with leading zeros: normalised? The tests pass the unpadded form.
+26. The wording of the verdict's lines for a host failure is not stated; only that there are some.
