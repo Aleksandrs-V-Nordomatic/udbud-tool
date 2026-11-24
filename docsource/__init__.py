@@ -12,7 +12,8 @@ notices of 3-14 Nov 2026:
     amgros           8.0%   pharmaceuticals, out of scope
     dalux            6.9%   every file of a public tender (1 622 of 1 622)
     api.udbud.dk     2.3%   every file (18 of 18)
-    byggeweb, ibinder, ajour, others  ~6%
+    byggeweb, ajour, others  ~5%
+    ibinder          1%     what its public view shows (4 tenders, 344 of 349 files, 24 Nov 2026)
 
 ONE MODULE PER HOST, EACH ANSWERING THE SAME TWO QUESTIONS: `listing(url)` -- what the host says
 the tender holds and which of it is public -- and `download(entry)` -- the bytes of one public
@@ -29,7 +30,7 @@ only file that changes: `dk_fetch` asks the same two questions of whatever modul
 """
 import urllib.parse
 
-from docsource import byggeweb, comdia, dalux, ethics, eusupply, mercell, udbuddk
+from docsource import byggeweb, comdia, dalux, ethics, eusupply, ibinder, mercell, udbuddk
 
 MODULES = (
     ("ethics.dk", ethics),
@@ -39,6 +40,7 @@ MODULES = (
     ("eu-supply.com", eusupply),
     ("mercell.com", mercell),
     ("comdia.com", comdia),
+    ("ibinder.com", ibinder),
 )
 
 

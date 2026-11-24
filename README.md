@@ -101,6 +101,7 @@ has one module per host, each answering `listing(urls)` and `download(entry)`:
 | `eusupply` | eu-supply.com | names only — public ones too, see below |
 | `mercell` | permalink.mercell.com | names only |
 | `comdia` | comdia.com | every file, under our supplier account — see below |
+| `ibinder` | my.ibinder.com, bookshelf.ibinder.com | what the public view shows — see below |
 
 Measured over the 174 competition notices of 3–14 Nov 2026: all files on 30% of tenders, 42% of
 the construction ones. ethics 481 of 481, Dalux 1 622 of 1 622, api.udbud.dk 18 of 18, Byggeweb 24
@@ -160,6 +161,33 @@ When the vendor page lists more files than the archive holds, the note says both
 with no `Id=` is `unknown`. The module prints nothing: the run's log is public.
 
 `python3 tools/comdia_check.py` signs in and presses nothing else.
+
+### iBinder, as an anonymous visitor
+
+A notice links `https://<my|bookshelf>.ibinder.com/etendering/<organisation>/tenders/<tender>/public`,
+which opens the tender as "Anonymous": every folder, every file name, and a viewer. Nothing is
+registered and no account is used. `docsource/ibinder.py` asks the page's own API, with the
+organisation in the `x-ibinder-tenantid` header:
+
+1. **Reads the tender and its configuration.** A 401, 403, 404 or 410 is `gated` with the code in the
+   note; any other error is raised, so the night says the host failed. When `publicLinkEnabled` is
+   not true, the tender is `gated` and no folder is asked for.
+2. **Walks the folders** (`procurementSections`, and their `subTabs` to any depth). A `Navigation`
+   folder holds no files of its own; an `Espd` folder is a form for the bidder; neither is asked for,
+   and a `Navigation` folder's sub-folders are. `enabled` is ignored: it does not say what a visitor
+   sees. A file's folder is the path of folder names.
+3. **Lists each folder's files**, 250 to a page, until `totalCount` is reached or a page comes back
+   empty. Files marked `deleted` are skipped.
+4. **Downloads the preview**, the PDF the viewer shows, never the original: the preview call answers a
+   short-lived link, which is followed only to `https://<name>.blob.core.windows.net`. What arrives
+   must be a PDF. A file whose name does not end in `.pdf` is stored as `<name>.pdf`.
+
+A file with no preview (zip, xml, xlsm) is not read: its path is listed under `gated`, and the note
+says how many there are. With files read and none unread the tender is `public`; with some unread,
+`partial`; with none read and some unread, `gated`; with no files at all, `none`. A link of another
+shape is `unknown`. No reason or note holds a preview link, because it carries its own key. Nothing
+but the tender, its configuration, the file lists and the previews is asked for: other calls answer
+with the buyer's staff.
 
 Per-host rules that came from running it, kept beside the code:
 
