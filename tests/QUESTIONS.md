@@ -207,3 +207,36 @@ existing test was found to contradict the README.
     whose media lie outside the tender's folder)? Not tested.
 13. **Two further readings of "an archive over 1 GB":** is the limit asked of the archive's own size,
     with media in it, as well? The tests use small archives whose members claim a size.
+
+## iBinder, as an anonymous visitor
+
+For `test_docsource_ibinder.py`, written without running it: no tool in the room executes code. No
+existing test mentions iBinder, and none in `test_docsource.py` was found to contradict the README.
+
+1. **A name ending in `.PDF`.** "A file whose name does not end in `.pdf` is stored as `<name>.pdf`"
+   does not say whether the case of letters counts. The test accepts `b.PDF` and `b.PDF.pdf`.
+2. **401, 403, 404 or 410 from a folder's file list.** The README says so of the first step, "the
+   tender and its configuration". Is the whole tender `gated`, is the folder passed over, or is it
+   raised? Not tested. Any other error from a file list is tested to be raised.
+3. **The sub-folders of an `Espd` folder:** asked for, or not? Not tested.
+4. **A subdomain other than `my` and `bookshelf`** is wired to the module, but the README's link shape
+   names those two hosts. The test takes such a link to be of another shape: `unknown`, asked nothing.
+5. **Near misses of the link's shape:** a trailing slash, a query or fragment, no `/public`, capitals
+   in the host. Not tested. Nor is a notice with several links (which one is read).
+6. **Does `totalCount` count deleted rows?** The tests do not check which pages are asked for when a
+   folder holds deleted rows.
+7. **A `totalCount` that is absent**, or that changes between pages: not tested.
+8. **A row without `GLOBAL_TenderVersionId`:** read with an empty `subresourceid`, or gated? Not tested.
+9. **`"preview": {}`, or a preview whose `url` is null or of another shape:** no preview, or an error?
+   Not tested; only `preview`, or `files`, being null or `files` absent.
+10. **A `/` in a folder's or a file's name** within the joined path: not tested.
+11. **`gated` paths** are taken to be the folder names and the file's own name joined with `/`, with no
+    `.pdf` added.
+12. **"must be a PDF"** is tested with an HTML page, a zip and an empty body. Whether bytes before
+    `%PDF` are accepted is not tested.
+13. **May a reason name the store's host and path?** The tests forbid the whole link and any part of
+    its query.
+14. **The notes of `public`, `none`, `unknown` and a tender whose link is not public** are not stated,
+    so only the notes with a code or a count are checked.
+15. **The number of requests per call** is not tested where a call fails, since `tries` belongs to
+    `common.fetch`.

@@ -34,7 +34,7 @@ from docsource import common
 
 NAME = "ibinder"
 LINK = re.compile(r"^https://((?:my|bookshelf)\.ibinder\.com)/etendering/"
-                  r"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/tenders/(\w+)", re.I)
+                  r"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/tenders/([\w-]+)", re.I)
 PAGE_SIZE = 250
 MAX_PAGES = 40
 
@@ -147,7 +147,7 @@ def download(entry):
         answer = _ask(entry["download"], entry["organisation"], context=context)
     except Exception as exc:
         return None, "the preview was not offered: %s" % type(exc).__name__
-    link = str(answer.get("url") or "")
+    link = str((answer.get("url") if isinstance(answer, dict) else None) or "")
     parts = urllib.parse.urlparse(link)
     if parts.scheme != "https" or not PREVIEW_HOST.match(parts.netloc.lower()):
         return None, "the preview led to a host that is not iBinder's store"
