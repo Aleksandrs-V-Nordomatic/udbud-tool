@@ -75,6 +75,31 @@ def _summary(target):
                                        "notice_id", "npn", "form_code")}
 
 
+def _newest(target):
+    """`(target, document)` of a newer notice of the same procedure, or None to keep this one.
+
+    Only a live notice counts: an award may close one lot, or one purchase in a system that stays
+    open, so it never takes a competition out of the window. A portal that does not answer keeps
+    the notice the window named: it is never lost to this check.
+    """
+    if not target.get("procedure_id"):
+        return None
+    try:
+        newer = [t for t in dk_targets.procedure(target["procedure_id"])
+                 if (t.get("published") or "") > (target.get("published") or "")
+                 and dk_page.is_live(t)]
+        for candidate in newer:
+            document = dk_page.detail(candidate["notice_id"], candidate["notice_version"],
+                                      candidate["npn"])
+            dk_page.enrich(candidate, document)
+            if document is not None and candidate["pid"] == target["pid"]:
+                return candidate, document
+    except Exception as exc:
+        dk_page.log("  the newest notice of %s was not asked for: %s"
+                    % (target["pid"], str(exc)[:120]))
+    return None
+
+
 def _watched_on_ted(reference):
     """A watched tender udbud.dk knows nothing about, as TED holds it.
 
@@ -182,9 +207,21 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
                                      "or withdrawn; look at the closes"})
             continue
         if row["pid"] in known:
-            for t in live:
-                if t["pid"] == row["pid"]:
-                    t["watched"] = True
+            # The lookup answers the procedure's newest notice; the window's own may be older.
+            for n, t in enumerate(live):
+                if t["pid"] != row["pid"]:
+                    continue
+                if (row.get("published") or "") > (t.get("published") or ""):
+                    try:
+                        newer_document = dk_page.detail(row["notice_id"], row["notice_version"],
+                                                        row["npn"])
+                    except Exception:
+                        newer_document = None
+                    if newer_document is not None:
+                        superseded.append(_summary(t))
+                        documents[row["notice_id"]] = newer_document
+                        live[n] = t = row
+                t["watched"] = True
             continue
         row["watched"] = True
         if document is None:
@@ -194,10 +231,32 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
         known.add(row["pid"])
 
     rules = policy_mod.load_policy(policy) if policy_mod is not None else None
+
+    # AN OLD WINDOW NEVER PUTS AN OLD NOTICE OVER A NEWER ONE. A day read late (a catch-up, a
+    # backfill) names a notice the buyer may have amended since, and the home is one per
+    # procedure. So the newest notice udbud.dk holds is the one read, as on the watch list.
+    # Measured on 24 Nov 2026: reading 17 Nov after 23 Nov replaced an amendment with its original.
+    current = []
+    for target in live:
+        gated_out = (rules is not None and not target.get("watched")
+                     and policy_mod.outside_scope(target, rules))
+        newest_one = None if gated_out or target.get("watched") else _newest(target)
+        if newest_one is None:
+            current.append(target)
+            continue
+        newer, document = newest_one
+        superseded.append(_summary(target))
+        documents[newer["notice_id"]] = document
+        # An amendment worded outside the gate is still the tender the window let through.
+        newer["past_gate"] = True
+        current.append(newer)
+    live = current
+
     moves, delivered, gated, host_failures = [], [], [], []
     for target in live:
         pid = target["pid"]
-        if rules is not None and not target.get("watched") and policy_mod.outside_scope(target, rules):
+        if (rules is not None and not target.get("watched") and not target.get("past_gate")
+                and policy_mod.outside_scope(target, rules)):
             # Named, never merely dropped: the whole row, so a person can overrule the gate the
             # next morning without the day being fetched again.
             gated.append({k: v for k, v in target.items() if k != "record"})

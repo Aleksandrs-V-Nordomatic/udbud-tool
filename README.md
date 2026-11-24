@@ -204,6 +204,12 @@ over still is. `coverage.from_ted` counts them and `coverage.rows_held` stays ud
 tender is looked up on TED only when udbud.dk holds no notice of its procedure at all. Measured on
 2026-11-23: udbud.dk 28, TED 30, both read from TED.
 
+A window read late never puts an old notice over a newer one. For every competition past the gate
+the day asks udbud.dk for the newest live notice of its procedure; when one was published later, that
+one is fetched, the gate is not asked again, and the window's own is named under `superseded`. For a
+watched tender the newer notice is the one the watch lookup answers. An award never takes a competition
+out of the window, and a portal that does not answer keeps the window's notice.
+
 A platform that fails while its listing is asked leaves the tender `unknown`, is named in
 `day.json` `host_failures` (`ref`, `pid`, `host`, `note`), and makes `tools/day_verdict.py` exit 1.
 
