@@ -186,15 +186,12 @@ def main(argv=None):
     if args.command == "fetch":
         import dk_day
         import dk_fetch
-        import dk_page
-        import dk_targets
-        target = dk_targets.one(args.reference)
+        target, document = dk_day.live_notice(args.reference)
         if target is None:
             print("fetch: no live notice for %s -- awarded, cancelled or withdrawn" % args.reference,
                   file=sys.stderr)
             return 1
         out = os.path.join(args.out, code)
-        document = dk_page.detail(target["notice_id"], target["notice_version"], target["npn"])
         done = dk_fetch.fetch(target, out, document)
         _, folder = dk_day.one_tender(target, done, out)
         print("%s (%s): %d of %d document(s), %.1f MB, documents %s on %s -> %s"

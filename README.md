@@ -292,7 +292,10 @@ is an unrelated illustration, and the nightly workflow refuses to fall back to i
 on 2026-11-16 and every one got the workstation's numbers from udbud.dk, TED and every anonymous
 document host. No schedule — the routine that reads the day starts it.
 
-`dk-fetch.yml` reads one tender by its procedure id, past the gate.
+`dk-fetch.yml` reads one tender by its procedure id, past the gate. A procedure udbud.dk knows
+nothing about is read from TED, as a watched one is; one udbud.dk knows and no longer lists as live
+is not looked for on TED. The lookup is `dk_day.live_notice(reference)`, which answers
+`(target, document)` or `(None, None)`.
 
 Secrets: `GRAPH_TENANT_ID`, `GRAPH_CLIENT_ID`, `GRAPH_CLIENT_SECRET`, `GRAPH_DRIVE_ID`,
 `GRAPH_DEST_ROOT`, `DK_POLICY`, `COMDIA_USER`, `COMDIA_PASSWORD` (without the last two, Comdia

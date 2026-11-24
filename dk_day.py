@@ -111,6 +111,15 @@ def _watched_on_ted(reference):
     return dk_ted.procedure(reference)
 
 
+def live_notice(reference):
+    """One procedure's newest live notice and its detail, wherever it is held: `(target, document)`,
+    or `(None, None)`. udbud.dk first, then TED for a procedure the portal knows nothing about."""
+    target = dk_targets.one(reference)
+    if target is None:
+        return _watched_on_ted(reference)
+    return target, dk_page.detail(target["notice_id"], target["notice_version"], target["npn"])
+
+
 def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_to=None,
         reconcile=True, with_text=True):
     run_id = run_id or time.strftime("%Y%m%dT%H%M%S", time.gmtime())
