@@ -54,8 +54,12 @@ def module_for(url):
     return None
 
 
-def listing(urls):
-    """What the tender's documents link leads to. `urls` is `udbudsDokumenter`, in order."""
+def listing(urls, facts=None):
+    """What the tender's documents link leads to. `urls` is `udbudsDokumenter`, in order.
+
+    `facts` is the notice's own record. Only Comdia asks for it, to decide whether it may open a
+    two-stage tender.
+    """
     urls = [u for u in (urls or []) if u]
     if not urls:
         return {"host": None, "platform": None, "access": "none", "files": [], "gated": [],
@@ -65,7 +69,7 @@ def listing(urls):
         return {"host": host_of(urls[0]), "platform": None, "access": "unknown", "files": [],
                 "gated": [], "note": "no reader for this host; the link is on the card"}
     try:
-        found = module.listing(urls)
+        found = module.listing(urls, facts) if module is comdia else module.listing(urls)
     except Exception as exc:                  # one host's outage must not lose the tender
         found = {"access": "unknown", "files": [], "gated": [], "failed": True,
                  "note": "the listing failed: %s: %s" % (type(exc).__name__, str(exc)[:160])}

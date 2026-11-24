@@ -12,6 +12,17 @@ reaches `dk_fetch` -- the recall gate's survivors and the cards a person is watc
 "Show interest" and "Subscribe" are never pressed: `_postback` refuses any control outside
 `PRESSED`, so no edit elsewhere in this file can press one by accident.
 
+PREQUALIFICATION IS PRESSED FOR BUILDING WORK ONLY. A two-stage tender offers ACCESS TO
+PREQUALIFICATION instead; it opens the same vendor page and files nothing -- the application and
+its ESPD are separate steps this module does not know. Decided on 24 Nov 2026 for building work
+(`building_work`) and for the cards a person is watching; on any other tender it stays unpressed.
+The tender page keeps offering the button afterwards, so the same press opens the tender again.
+
+WHAT NOTHING READS STAYS IN THE ARCHIVE. A renovation's archive can be mostly sewer video and its
+frames (Ved Moellen: 223 .bmp, 41 .mp4 and 55 data files beside 36 documents). `MEDIA` names
+them; they are not listed, not stored and not counted against the size limit, and the note says
+how many there were.
+
 EVERYTHING IS PLAIN HTTP. Every page is ASP.NET WebForms: a button is a POST of the page's hidden
 fields with `__EVENTTARGET` naming the control. Proved from a runner on 23 Nov 2026: the sign-in
 form on `/login.aspx` answers with `.ASPXAUTH` and the vendor start page, no captcha, no
@@ -22,6 +33,7 @@ member `<tender>/<group>/<file>`, names flagged UTF-8). No browser is needed.
     tender page    GET  /<buyer>/tenderinformationshow.aspx?Id=N
       no access    ...$lbRegisterTender   "Access to tender"   -> access, then as below
       access       ...$lbGoToTender       "Go to tender"       -> /Site/vendor/user/tenderentity/show.aspx?Id=M
+      two stages   ...$lbRegisterPreQual  "Access to prequalification" -> the same vendor page
     vendor page    ...$lbDownloadAll<k>   "Download all"       -> application/octet-stream, a ZIP
 
 ONE SIGN-IN PER RUN, ONE FAILED SIGN-IN PER RUN, ONE TENDER AT A TIME. A refused account is not
@@ -60,11 +72,24 @@ VENDOR_PAGE = "/site/vendor/user/tenderentity/show.aspx"
 SIGN_IN = "ctl00$cphInnerContent$lbLogin"
 ACCESS = "ctl00$ctl00$cphMain$cphMain$lbRegisterTender"
 GO_TO_TENDER = "ctl00$ctl00$cphMain$cphMain$lbGoToTender"
+PREQUALIFICATION = "ctl00$ctl00$cphMain$cphMain$lbRegisterPreQual"
 DOWNLOAD_ALL = re.compile(r"ctl00\$ctl00\$cphMain\$cphMain\$lbDownloadAll\d*")
 PER_FILE = re.compile(r"\$gvDocument\$ctl\d+\$lbDownload\b")
 
-# The only controls this module may press. Show interest and Subscribe are not among them.
+# The only controls this module may press. Show interest and Subscribe are not among them, and
+# Access to prequalification is let through one call at a time (`prequalify`).
 PRESSED = frozenset({SIGN_IN, ACCESS, GO_TO_TENDER})
+
+# Building work by its CPV codes, as prefixes: construction in general, buildings, installation and
+# completion, repair of building installations, and their design and supervision. Roads, pipelines
+# and water works (4523-4525), surveys (7135) and environmental consultancy (71313) are not.
+BUILDING_CPV = ("45000000", "451", "45200000", "4521", "4526", "453", "454", "507",
+                "71000000", "712", "71300000", "71310000", "71314", "71315",
+                "7132", "7133", "715")
+
+# What an archive holds that nothing downstream reads.
+MEDIA = frozenset({"mp4", "avi", "mov", "wmv", "mkv", "mpg", "mpeg", "m4v", "bmp",
+                   "dat", "evtdat"})
 
 # Between two presses on Comdia: one supplier reading one tender at a time.
 PAUSE = 2.0
@@ -151,10 +176,12 @@ def _page(opener, url, data=None):
     return body.decode("utf-8", "replace"), final
 
 
-def _postback(opener, url, page, target, timeout=60, tries=3):
-    """Press one control. Refuses every control but the sign-in, Access and Go to tender, and
-    the Download all button."""
-    if target not in PRESSED and not DOWNLOAD_ALL.fullmatch(target):
+def _postback(opener, url, page, target, timeout=60, tries=3, prequalify=False):
+    """Press one control. Refuses every control but the sign-in, Access and Go to tender, the
+    Download all button and, only when the caller says so, Access to prequalification."""
+    allowed = (target in PRESSED or DOWNLOAD_ALL.fullmatch(target)
+               or (prequalify and target == PREQUALIFICATION))
+    if not allowed:
         raise PermissionError("Comdia control %r is not one this module presses" % target)
     form = hidden_fields(page)
     form.update({"__EVENTTARGET": target, "__EVENTARGUMENT": ""})
@@ -214,8 +241,14 @@ def tender_id(url):
     return None
 
 
-def open_tender(opener, url):
-    """The tender's vendor page `(page, url)`, pressing Access to tender if it is not open yet.
+def building_work(codes):
+    """Whether any of a tender's CPV codes is building work."""
+    return any(str(code).startswith(BUILDING_CPV) for code in codes or [] if code)
+
+
+def open_tender(opener, url, prequalify=False):
+    """The tender's vendor page `(page, url)`, pressing Access to tender if it is not open yet,
+    or Access to prequalification when `prequalify` allows it.
 
     Returns `(None, None, reason)` when the tender offers no way in we are allowed to take.
     """
@@ -239,6 +272,13 @@ def open_tender(opener, url):
         return None, None, "Go to tender did not lead to the tender's vendor page"
     if pressed:
         return None, None, "Access to tender was pressed and the tender did not open"
+    if PREQUALIFICATION in found:
+        if not prequalify:
+            return None, None, "the tender has prequalification and is not building work; not pressed"
+        body, final, _ = _postback(opener, final, page, PREQUALIFICATION, prequalify=True)
+        if VENDOR_PAGE in final.lower():
+            return body.decode("utf-8", "replace"), final, None
+        return None, None, "Access to prequalification was pressed and the tender did not open"
     offered = sorted({c.rsplit("$", 1)[-1] for c in found if "cphMain$cphMain$lb" in c})
     return None, None, "the tender page offers no Access to tender (it offers: %s)" % (
         ", ".join(offered) or "nothing")
@@ -257,14 +297,32 @@ def _member_name(info):
     return name.replace("\\", "/")
 
 
+def _extension(name):
+    base = name.rpartition("/")[2]
+    return base.rpartition(".")[2].lower() if "." in base else ""
+
+
+def left_out(archive):
+    """The members nothing downstream reads, counted by extension."""
+    counts = {}
+    for info in archive.infolist():
+        extension = _extension(_member_name(info))
+        if not info.is_dir() and extension in MEDIA:
+            counts[extension] = counts.get(extension, 0) + 1
+    return counts
+
+
 def archive_files(archive, source):
-    """The listing's files, one per member. The archive's own top folder -- the tender, the
-    same for every member -- is dropped; the groups under it are kept as the folder."""
+    """The listing's files, one per member that something reads. The archive's own top folder --
+    the tender, the same for every member -- is dropped; the groups under it are kept as the
+    folder."""
     members = [(i, _member_name(i)) for i in archive.infolist() if not i.is_dir()]
     tops = {name.split("/", 1)[0] for _, name in members if "/" in name}
     strip_top = len(tops) == 1 and all("/" in name for _, name in members)
     files = []
     for info, name in sorted(members, key=lambda m: m[1]):
+        if _extension(name) in MEDIA:
+            continue
         path = name.split("/", 1)[1] if strip_top else name
         folder, _, base = path.rpartition("/")
         files.append({"id": "zip:%s" % name, "name": base or path, "folder": folder,
@@ -272,8 +330,15 @@ def archive_files(archive, source):
     return files
 
 
-def listing(urls):
-    """Sign in, open the tender, download its archive, and list its members."""
+def listing(urls, facts=None):
+    """Sign in, open the tender, download its archive, and list its members.
+
+    `facts` is what the notice says of the tender: its CPV codes, and whether a card watches it,
+    decide whether Access to prequalification may be pressed. Without them it may not.
+    """
+    facts = facts or {}
+    prequalify = bool(facts.get("watched")) or building_work(
+        [facts.get("cpv_main")] + list(facts.get("cpv") or []))
     _ARCHIVE.update(key=None, zip=None)
     url = urls[0]
     if tender_id(url) is None:
@@ -283,10 +348,10 @@ def listing(urls):
     try:
         opener = session()
         try:
-            page, vendor_url, reason = open_tender(opener, url)
+            page, vendor_url, reason = open_tender(opener, url, prequalify)
         except SignInFailed:                   # the session ended mid-run: one fresh sign-in
             opener = session(fresh=True)
-            page, vendor_url, reason = open_tender(opener, url)
+            page, vendor_url, reason = open_tender(opener, url, prequalify)
         if reason:
             return {"access": "gated", "note": reason}
         buttons = [c for c in controls(page) if DOWNLOAD_ALL.fullmatch(c)]
@@ -303,15 +368,22 @@ def listing(urls):
             return {"access": "gated", "note": "Download all answered %s, %d bytes, not an archive"
                     % (kind or "no type", len(data))}
         archive = zipfile.ZipFile(io.BytesIO(data))
-        claimed = sum(i.file_size for i in archive.infolist())
+        claimed = sum(i.file_size for i in archive.infolist()
+                      if _extension(_member_name(i)) not in MEDIA)
         if claimed > MAX_UNPACKED:
             return {"access": "gated", "note": "the archive claims %.0f MB unpacked, over the %d MB a tender may take"
                     % (claimed / 1048576.0, MAX_UNPACKED // 1048576)}
         files = archive_files(archive, vendor_url)
+        skipped = left_out(archive)
+        held = len(files) + sum(skipped.values())
         _ARCHIVE.update(key=vendor_url, zip=archive)
-        note = ""
-        if on_page > len(files):
-            note = "the vendor page lists %d file(s); the archive holds %d" % (on_page, len(files))
+        notes = []
+        if on_page > held:
+            notes.append("the vendor page lists %d file(s); the archive holds %d" % (on_page, held))
+        if skipped:
+            notes.append("left out, nothing reads them: %s"
+                         % ", ".join("%d .%s" % (n, e) for e, n in sorted(skipped.items())))
+        note = "; ".join(notes)
         return {"access": "public" if files else "none", "files": files, "tender_id": tender_id(url),
                 "note": note}
     except SignInFailed as exc:

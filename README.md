@@ -121,16 +121,37 @@ presses **Access to tender** on the tender page. `docsource/comdia.py`, in plain
 2. **Opens the tender page** (`…/tenderinformationshow.aspx?Id=N`). If the company has no access
    yet, it presses **Access to tender** (`lbRegisterTender`), then **Go to tender**
    (`lbGoToTender`), which leads to the vendor page `/Site/vendor/user/tenderentity/show.aspx`.
+   A tender with **prequalification** offers **Access to prequalification**
+   (`lbRegisterPreQual`) instead. It is pressed only for building work or for a watched card
+   (below); the press itself leads to the vendor page, and the tender page keeps offering it, so
+   the same press opens the tender on every later run.
 3. **Presses Download all** (`lbDownloadAll<k>`) and gets one ZIP of the tender.
 4. **Lists each member as a file**, its folder the group the buyer filed it under (the archive's
    own top folder, the tender, is dropped), and serves each member's bytes from the archive held
-   in memory. `dk_fetch` asks its usual two questions and stores them as from any host.
+   in memory. `dk_fetch` asks its usual two questions and stores them as from any host. Video,
+   bitmaps and inspection data (`comdia.MEDIA`: mp4, avi, mov, wmv, mkv, mpg, mpeg, m4v, bmp, dat,
+   evtdat, in any case of letters) are left out, because nothing reads them: they are not listed,
+   not counted against the 1 GB, and the note says how many of each extension there were, for
+   example `left out, nothing reads them: 223 .bmp, 41 .mp4`. A tender whose archive holds nothing
+   else is `none`.
+
+**Which prequalification tenders.** `docsource.listing(urls, facts)` hands the notice's record to
+Comdia, and no other module. Access to prequalification is pressed when `facts["watched"]` is true,
+or when a CPV code in `facts["cpv_main"]` or `facts["cpv"]` starts with one of
+`comdia.BUILDING_CPV` (`comdia.building_work(codes)`): construction in general, buildings,
+installation and completion, repair of building installations, and their design and supervision.
+Roads, pipelines and water works, surveys and environmental consultancy are not building work.
+Without `facts` it is not pressed. A tender where it is not pressed stays `gated`, and the note says
+that it has prequalification and is not building work. Where a tender page offers Go to tender or
+Access to tender, that is taken and Access to prequalification is not pressed.
 
 **The buyer sees it.** Access registers the company (SIA "Nordomatic") on the tender, the tender
 lands in My Comdia → My Tender/offer, and the vendor page marks each file downloaded. That was
-decided on 23 Nov 2026. It happens only for tenders that reach the fetch — recall-gate survivors
-and watched cards. **Show interest and Subscribe are never pressed**: the module refuses to post
-back any control but the sign-in, Access to tender, Go to tender and Download all.
+decided on 23 Nov 2026, and for prequalification on 24 Nov 2026. It happens only for tenders that
+reach the fetch — recall-gate survivors and watched cards. Opening a prequalification files no
+application. **Show interest and Subscribe are never pressed**: the module refuses to post back any
+control but the sign-in, Access to tender, Go to tender and Download all, and Access to
+prequalification only on a call that says `prequalify=True`.
 
 When it cannot read a tender — no account, a refused sign-in, a tender page that offers no Access
 to tender, an answer that is not an archive, an archive over 1 GB unpacked — the tender stays

@@ -154,7 +154,7 @@ def fetch(target, out_root, document=None, with_text=True, previous=None):
     home = os.path.join(out_root, "tenders", pid)
     os.makedirs(os.path.join(home, "doc"), exist_ok=True)
 
-    found = docsource.listing(target.get("documents_urls"))
+    found = docsource.listing(target.get("documents_urls"), target)
     records, withheld, total = ([], [], 0)
     if found.get("files"):
         records, withheld, total = store(home, found["platform"], found["files"])
