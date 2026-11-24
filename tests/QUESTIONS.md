@@ -117,3 +117,28 @@ The tests were written without running them: no tool in the room executes code.
 24. Is `host_failures` present and `[]` when there are none? The tests accept absent.
 25. `taken`'s `numbers` with leading zeros: normalised? The tests pass the unpadded form.
 26. The wording of the verdict's lines for a host failure is not stated; only that there are some.
+
+## A window read late
+
+For `test_dk_day_newest.py`, written without running it: no tool in the room executes code.
+
+1. **A watched tender in the window.** The README says "every competition past the gate"; the brief
+   says a watched tender is not changed. The test follows the brief: the watch lookup answers the
+   window's notice, the procedure holds a later one, and the window's is fetched. When the watch
+   lookup answers a newer notice than the window's, is the window's named under `superseded`? Not
+   tested. Nor is whether a watched tender's procedure is asked for at all: only what is fetched.
+2. **The newest later notice is unusable** (no detail, another procedure's identifier, or its detail
+   raises) and an older one, still later than the window's, is usable. Does the day fall back to it,
+   or keep the window's notice? Not tested.
+3. **Notices between** the window's and the newest: are they named under `superseded` too? The test
+   only checks that the window's own is.
+4. **Two notices of one procedure in the window and a later one outside it:** are both of the
+   window's named under `superseded`? Not tested.
+5. **A newer notice whose title and description would not pass the gate:** still fetched? Not tested.
+6. **A competition with no procedure id** (`int-…` or `notice-…` key): is a lookup made? Not tested.
+7. **A notice only TED holds:** is udbud.dk asked for a newer notice of its procedure? Not tested.
+8. **A later notice of the same procedure that the portal prints with no readable date:** not tested.
+9. Which exceptions count as "the portal raising"? The tests raise `net.Unreachable` only.
+10. **Existing tests:** `test_dk_day.py` and `test_dk_day_ted.py` do not patch `dk_targets.procedure`.
+    In `test_dk_day.py` the lookup is answered with the whole window, where every row has the same
+    date, so nothing there should win. None contradicts the spec.
