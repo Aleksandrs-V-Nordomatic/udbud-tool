@@ -171,3 +171,39 @@ For `test_dk_targets_distinct.py`, written without running it: no tool in the ro
 9. **The order of the returned rows** after a repeat is not stated; the tests compare them sorted.
 10. **Which copy is kept** when two rows share `noticeId` and `noticeVersion` but differ elsewhere
     (for example in `noticePublicationNumber`)? Not tested.
+
+## Comdia: prequalification and media
+
+For `test_docsource_prequal.py`, written without running it: no tool in the room executes code. No
+existing test was found to contradict the README.
+
+1. **45000000 "main only".** The brief marks it so; the README makes no difference between
+   `cpv_main` and `cpv`. Does `45000000` standing only in `cpv` count? The tests use it as `cpv_main`
+   and in `building_work(["45000000"])`, not in `cpv` alone. And does "main only" mean only the
+   bare division code, so that other 45000000-like codes (4500xxxx) are not building work?
+2. **The exact prefixes of `BUILDING_CPV`** are not stated, so codes outside the brief's list are
+   not tested (451 site preparation, 713 other than those named, 71400000, 71500000). Nor is a code
+   with its check digit (`45210000-7`).
+3. **The note of a tender not pressed:** the tests take "the note says that it has prequalification
+   and is not building work" to mean it holds `prequalification` and `not building work` in any case
+   of letters. The same note is expected without `facts`, where it is not known whether it is.
+4. **The press that leads back to the tender page, which now offers Go to tender:** is Go to tender
+   pressed, or is it `gated`? Not tested; the tests lead to the home page and to the same page with
+   no Go to tender. The wording of that note is not stated; only that there is one.
+5. **Access to tender pressed, and the page it leads to offers only Access to prequalification:** is
+   that pressed for building work? Not tested.
+6. **The session ends on the answer to the press** rather than on the tender page: fresh sign-in?
+   Not tested.
+7. **`watched` values other than true and false** (`1`, `"yes"`, `"false"`): not tested.
+8. **The order in the "left out" note:** by extension, or by count? The README's example fits both.
+   The tests check each count and extension only. How it is joined to another note (the two counts
+   of the vendor page) is not stated either.
+9. **The keys of `left_out`** are taken to be lower case without a dot, as in `MEDIA`.
+10. **An archive of media only:** does the note still name what was left out? Only `none` and no
+    files are tested.
+11. **A name that is an extension and nothing else** (`.bmp`): media, or a member with no extension?
+    Not tested. Nor is a folder entry named like media (`144703/Film.mp4/`) in `left_out`.
+12. **The top folder that is dropped:** is it found over every member, or over those kept (an archive
+    whose media lie outside the tender's folder)? Not tested.
+13. **Two further readings of "an archive over 1 GB":** is the limit asked of the archive's own size,
+    with media in it, as well? The tests use small archives whose members claim a size.

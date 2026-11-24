@@ -331,6 +331,11 @@ def archive_files(archive, source):
 
 
 def listing(urls, facts=None):
+    """The tender as `_read` found it; `files` is always there, empty when nothing was read."""
+    return dict({"files": []}, **_read(urls, facts))
+
+
+def _read(urls, facts=None):
     """Sign in, open the tender, download its archive, and list its members.
 
     `facts` is what the notice says of the tender: its CPV codes, and whether a card watches it,
@@ -379,7 +384,7 @@ def listing(urls, facts=None):
         _ARCHIVE.update(key=vendor_url, zip=archive)
         notes = []
         if on_page > held:
-            notes.append("the vendor page lists %d file(s); the archive holds %d" % (on_page, held))
+            notes.append("the vendor page lists %d; the archive holds %d" % (on_page, held))
         if skipped:
             notes.append("left out, nothing reads them: %s"
                          % ", ".join("%d .%s" % (n, e) for e, n in sorted(skipped.items())))
