@@ -8,6 +8,10 @@ Latvia is `eis-tool`, Lithuania `epps-tool`, Estonia `rhr-tool`, Finland `hilma-
 repository per portal, one country per repository, and the same `day.json` beside the same
 folders in every one of them.
 
+**Proprietary. All rights reserved; no licence is granted and no use is permitted — see
+[LICENSE](LICENSE).** This includes copying, running, modifying and AI training. Contributions
+are not accepted.
+
 ## One country
 
 `--country DK` has no default. The destination folder is derived from the country, and
