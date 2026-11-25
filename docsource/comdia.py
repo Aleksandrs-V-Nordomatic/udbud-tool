@@ -97,8 +97,9 @@ PAUSE = 2.0
 # The Hornbaek archive is 172 MB and came down in seconds; ten minutes covers a slow night.
 ARCHIVE_TIMEOUT = 600
 
-# What one tender may unpack to; a claim beyond it is a mistake or a bomb.
-MAX_UNPACKED = 1024 * 1024 * 1024
+# What one tender may unpack to; a claim beyond it is a mistake or a bomb. Real ones reach 2 GB,
+# and the runner has about 14 GB free.
+MAX_UNPACKED = 4 * 1024 * 1024 * 1024
 
 CHALLENGE = re.compile(r"captcha|turnstile|cf-chl|challenge-platform", re.I)
 

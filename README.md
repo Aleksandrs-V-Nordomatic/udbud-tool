@@ -132,7 +132,7 @@ presses **Access to tender** on the tender page. `docsource/comdia.py`, in plain
    in memory. `dk_fetch` asks its usual two questions and stores them as from any host. Video,
    bitmaps and inspection data (`comdia.MEDIA`: mp4, avi, mov, wmv, mkv, mpg, mpeg, m4v, bmp, dat,
    evtdat, in any case of letters) are left out, because nothing reads them: they are not listed,
-   not counted against the 1 GB, and the note says how many of each extension there were, for
+   not counted against the 4 GB, and the note says how many of each extension there were, for
    example `left out, nothing reads them: 223 .bmp, 41 .mp4`. A tender whose archive holds nothing
    else is `none`.
 
@@ -155,7 +155,7 @@ control but the sign-in, Access to tender, Go to tender and Download all, and Ac
 prequalification only on a call that says `prequalify=True`.
 
 When it cannot read a tender — no account, a refused sign-in, a tender page that offers no Access
-to tender, an answer that is not an archive, an archive over 1 GB unpacked — the tender stays
+to tender, an answer that is not an archive, an archive over 4 GB unpacked — the tender stays
 `gated` and the reason is the listing's note, in the home's `index.json` (`documents_note`).
 When the vendor page lists more files than the archive holds, the note says both counts. A link
 with no `Id=` is `unknown`. The module prints nothing: the run's log is public.
