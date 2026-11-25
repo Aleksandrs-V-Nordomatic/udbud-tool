@@ -47,7 +47,7 @@ WORK = {"cpv_main": "45210000", "cpv": ["45210000"], "watched": False}
 ROADS = {"cpv_main": "45233140", "cpv": ["45233140"], "watched": False}
 WATCHED = {"cpv_main": "45233140", "cpv": ["45233140"], "watched": True}
 
-OVER = 1024 ** 3 + 1
+THREE_GIB = 3 * 1024 ** 3   # fits a plain ZIP record; two members claiming it are over the limit
 
 
 class FakePrequal(FakeComdia):
@@ -287,15 +287,18 @@ class Media(PrequalCase):
         for counted in (r"\b2 \.mp4\b", r"\b1 \.bmp\b", r"\b1 \.evtdat\b"):
             self.assertRegex(found["note"], counted)
 
-    def test_media_do_not_count_against_the_gigabyte_and_other_members_do(self):
-        raw = zip_bytes([("144703/A/a.pdf", PDF), ("144703/B/b.mp4", b"1"),
-                         ("144703/B/c.BMP", b"2")])
-        big_media = claiming_for(claiming_for(raw, "144703/B/b.mp4", OVER), "144703/B/c.BMP", OVER)
+    def test_media_do_not_count_against_the_four_gigabytes_and_other_members_do(self):
+        raw = zip_bytes([("144703/A/a.pdf", PDF), ("144703/A/d.pdf", PDF),
+                         ("144703/B/b.mp4", b"1"), ("144703/B/c.BMP", b"2")])
+        big_media = claiming_for(claiming_for(raw, "144703/B/b.mp4", THREE_GIB),
+                                 "144703/B/c.BMP", THREE_GIB)
         found = self.listing(FakeComdia(archive=big_media))
         self.assertEqual(found["access"], "public", found.get("note"))
-        self.assertEqual([f["name"] for f in found["files"]], ["a.pdf"])
+        self.assertEqual([f["name"] for f in found["files"]], ["a.pdf", "d.pdf"])
         self.reset_state()
-        found = self.listing(FakeComdia(archive=claiming_for(big_media, "144703/A/a.pdf", OVER)))
+        big_both = claiming_for(claiming_for(big_media, "144703/A/a.pdf", THREE_GIB),
+                                "144703/A/d.pdf", THREE_GIB)
+        found = self.listing(FakeComdia(archive=big_both))
         self.assertEqual(found["access"], "gated")
         self.assertTrue(found["note"])
 

@@ -407,7 +407,7 @@ class Comdia(ComdiaCase):
         self.assertEqual(comdia.PRESSED, frozenset({SIGN_IN_NAME, ACCESS_NAME, GO_NAME}))
         self.assertEqual(comdia.PAUSE, 2.0)
         self.assertEqual(comdia.ARCHIVE_TIMEOUT, 600)
-        self.assertEqual(comdia.MAX_UNPACKED, 1024 ** 3)
+        self.assertEqual(comdia.MAX_UNPACKED, 4 * 1024 ** 3)
         self.assertTrue(issubclass(comdia.SignInFailed, Exception))
 
     def test_download_all_and_per_file_patterns(self):
@@ -792,15 +792,23 @@ class ComdiaListing(ComdiaCase):
         self.assertEqual(found["access"], "gated")
         self.assertTrue(found["note"])
 
-    def test_an_archive_over_a_gigabyte_unpacked_is_gated(self):
-        one = claiming(zip_bytes([("144703/A/big.bin", b"x")]), 1024 ** 3 + 1)
+    def test_an_archive_over_four_gigabytes_unpacked_is_gated(self):
+        # A plain ZIP record holds at most 4 GiB - 1, so it takes two members to be over.
+        raw = claiming(zip_bytes([("144703/A/a.bin", b"x"), ("144703/A/b.bin", b"y")]),
+                       3 * 1024 ** 3)
+        found = self.listing(FakeComdia(archive=raw))
+        self.assertEqual(found["access"], "gated")
+        self.assertTrue(found["note"])
+
+    def test_an_archive_of_two_gigabytes_unpacked_is_read(self):
+        one = claiming(zip_bytes([("144703/A/big.bin", b"x")]), 2 * 1024 ** 3)
         two = claiming(zip_bytes([("144703/A/a.bin", b"x"), ("144703/A/b.bin", b"y")]),
-                       600 * 1024 ** 2)
-        for raw in (one, two):
+                       1024 ** 3)
+        for raw, names in ((one, ["big.bin"]), (two, ["a.bin", "b.bin"])):
             self.reset_state()
             found = self.listing(FakeComdia(archive=raw))
-            self.assertEqual(found["access"], "gated")
-            self.assertTrue(found["note"])
+            self.assertEqual(found["access"], "public", found.get("note"))
+            self.assertEqual([f["name"] for f in found["files"]], names)
 
     def test_a_refused_sign_in(self):
         fake = FakeComdia(login_answer=LOGIN_PAGE)

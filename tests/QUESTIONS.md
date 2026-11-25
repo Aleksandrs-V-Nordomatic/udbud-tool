@@ -205,7 +205,7 @@ existing test was found to contradict the README.
     Not tested. Nor is a folder entry named like media (`144703/Film.mp4/`) in `left_out`.
 12. **The top folder that is dropped:** is it found over every member, or over those kept (an archive
     whose media lie outside the tender's folder)? Not tested.
-13. **Two further readings of "an archive over 1 GB":** is the limit asked of the archive's own size,
+13. **Two further readings of "an archive over 4 GB":** is the limit asked of the archive's own size,
     with media in it, as well? The tests use small archives whose members claim a size.
 
 ## iBinder, as an anonymous visitor
