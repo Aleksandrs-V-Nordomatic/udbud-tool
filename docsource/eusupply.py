@@ -27,6 +27,19 @@ PURCHASE = ROOT + "/ctm/Supplier/PublicPurchase/%s/0/0?returnUrl=&b="
 WHY = "EU-Supply's robots.txt disallows /app/docmgmt, the path its public files are served from"
 
 
+def clean_name(text):
+    """A file name as the page shows it.
+
+    The documents page is single-byte -- its æ, ø and å read right as latin-1 -- but every name is
+    led by a UTF-8 non-breaking space, the two bytes C2 A0, which latin-1 reads as "Â" and a
+    non-breaking space. 45 homes carried "Â " on every gated name until 26 Nov 2026. That pair and
+    any other non-breaking space become a space; spaces are collapsed and the ends trimmed, along
+    with the replacement character.
+    """
+    text = htmlmod.unescape(str(text or "")).replace("Â ", " ").replace(" ", " ")
+    return re.sub(r"\s+", " ", text).strip(" �")
+
+
 def listing(urls):
     m = re.search(r"PID=(\d+)", urls[0]) or re.search(r"PublicPurchase/(\d+)", urls[0])
     if not m:
@@ -41,12 +54,12 @@ def listing(urls):
     public = []
     for dvid, lid in re.findall(r"DownloadPublicDocument\('(\d+)','sDoc_\d+','(\d+)'\)", listing_page):
         name = re.search(r"var sDoc_%s\s*=\s*'([^']*)'" % dvid, listing_page)
-        public.append(htmlmod.unescape(name.group(1)) if name else "dvid%s" % dvid)
+        public.append(clean_name(name.group(1)) if name else "dvid%s" % dvid)
     gated = []
     at = listing_page.find("Available after expression of interest")
     if at >= 0:
         cells = re.findall(r'<td valign="top" class="tblcell" colspan="2">(.*?)</td>', listing_page[at:], re.S)
-        gated = [re.sub(r"<[^>]+>", "", c).strip(" \xa0�") for c in cells]
+        gated = [clean_name(re.sub(r"<[^>]+>", "", c)) for c in cells]
         gated = [g for g in gated if g and g not in ("Print...", "Close window")]
     note = ("public files named, not downloaded: %s" % WHY if public
             else "" if gated else "the documents page lists no files")

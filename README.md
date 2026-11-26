@@ -238,7 +238,11 @@ Per-host rules that came from running it, kept beside the code:
   tender that is not public; a message saying *cannot be accessed publicly* is, and is `gated`.
 - **EU-Supply** serves its public files from `/app/docmgmt`, which its robots.txt disallows, so
   nothing is downloaded there. It also drew 502 on six parallel requests; requests go one at a
-  time with a cookie session.
+  time with a cookie session. Its documents page is single-byte, but every file name on it is led
+  by a UTF-8 non-breaking space, which read as latin-1 is `Â` and a non-breaking space (45 homes
+  carried `Â ` on every gated name until 26 Nov 2026). `eusupply.clean_name(text)` unescapes HTML
+  entities, turns that pair and any other non-breaking space into a space, collapses runs of
+  spaces and trims the ends, and `�` with them; every public and gated name goes through it.
 - **ethics.dk** lists records with no file (ESPD, response templates); they are skipped.
 - Every download is checked by what arrived: an HTML page under a 200 is not the file.
 
