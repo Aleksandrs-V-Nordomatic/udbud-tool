@@ -45,6 +45,13 @@ jobs:
           python3 eis_tool.py fetch "$REFERENCE" --out work | tee fetch.log
           echo "FETCH_DAY=$(sed -n 's/.*--date //p' fetch.log)" >> "$GITHUB_ENV"
 
+      # The night's OCR lane, over this one home: Tesseract (dan+eng) reads the scans the
+      # extractor found no text in, and the texts travel with the delivery as doc/ocr-*.md.
+      - name: Read what no decoder could
+        env:
+          EIS_COUNTRY: DK
+        run: python3 eis_tool.py scans --out work --date "$FETCH_DAY" || true
+
       - name: Deliver it where the reader can reach it
         if: ${{ success() && env.HAVE_GRAPH == 'true' }}
         env:

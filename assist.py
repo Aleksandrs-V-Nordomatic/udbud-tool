@@ -365,6 +365,11 @@ def run(pack, send_fn=None, model=None, api_key=None, reasons=DEFAULT_REASONS,
         if spent:
             time.sleep(pace)
 
+        # A file the fetch carried over from the home is named in the manifest and is not on
+        # this disk; it was read, or tried, the night it was downloaded.
+        if not os.path.exists(os.path.join(pack, entry["path"])):
+            skipped.append(dict(entry, skipped="source-not-on-disk"))
+            continue
         with open(os.path.join(pack, entry["path"]), "rb") as fh:
             blob = fh.read()
         try:

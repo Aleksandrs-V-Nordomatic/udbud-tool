@@ -221,6 +221,11 @@ def main(argv=None):
             if not os.path.exists(os.path.join(home, "normalized", "manifest_normalized.json")):
                 continue
             read_scans(home, model=args.model, limit=args.limit, provider=args.provider)
+            # What the lane read goes where a reader looks, and the delivery takes it from there.
+            import dk_fetch
+            adopted = dk_fetch.adopt_ocr(home)
+            if adopted:
+                print("  %d OCR text(s) put into the home" % adopted)
         return 0
 
     if args.command == "day":

@@ -250,8 +250,11 @@ def deliver(out_root, date, run_id, drive, base, tok):
         # that name cannot have become different bytes, and a document uploaded the day it
         # appeared is never uploaded again.
         wanted = {"doc/%s.md" % k for k in changes.documents_to_send(record, current)}
+        # An OCR text is on this disk only the night the lane read it (`dk_fetch.adopt_ocr`), and
+        # the fingerprint does not know it, so it travels whenever it is here.
+        ocr = [(rel, data) for rel, data in contents if rel.startswith("doc/ocr-")]
         to_send = [(rel, data) for rel, data in contents
-                   if not rel.startswith("doc/") or rel in wanted]
+                   if not rel.startswith("doc/") or rel in wanted or rel.startswith("doc/ocr-")]
         sent += len(wanted)
         carried += 0 if record.get("reextracted") else record.get("carried_over", 0)
 
@@ -282,6 +285,10 @@ def deliver(out_root, date, run_id, drive, base, tok):
             # gated home, the vendor page's signature. Left on the drive as it was, a gated card
             # keeps saying what the host said a week ago. So the index alone is sent when any
             # field of it moved, and the record names the fields.
+            for rel, data in ocr:                  # before the index that names them
+                graph.upload(drive, "%s/%s" % (home_root, rel), data, tok)
+                files += 1
+                bytes_sent += len(data)
             moved = index_moves(graph.json_at(drive, "%s/index.json" % home_root, tok), index)
             if moved:
                 data = json.dumps(index, ensure_ascii=False).encode("utf-8")

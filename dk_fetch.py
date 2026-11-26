@@ -74,6 +74,17 @@ def carriable(held, tool):
     return out
 
 
+SCAN_REASON = "no text layer"
+OCR_FIELDS = ("doc", "chars", "ocr")
+
+
+def needs_ocr(held):
+    """Whether a file the home holds is a scan the OCR lane has not been shown yet: no text of its
+    own, no `ocr` mark on its index entry, and the extractor said it has no text layer."""
+    return (not held["doc"].get("doc") and not held["doc"].get("ocr")
+            and any(SCAN_REASON in str(t.get("note") or "") for t in held["texts"]))
+
+
 def store(home, platform, files, carry=None):
     """Every public file the platform serves, written under `originals/`, one request at a time.
 
@@ -98,7 +109,10 @@ def store(home, platform, files, carry=None):
         if held is not None and held["record"].get("title") != title:
             seen.discard(held["record"]["files"][0]["filename"].casefold())
             held = None                        # moved to another folder: a change, read it
-        if held is not None and docsource.unchanged(platform, entry, held["doc"]):
+        # A scan the OCR lane has not seen is read once more, so the lane can read it -- unless
+        # the host has nothing to hand but the home's own entry (Comdia's unchanged page).
+        scan = held is not None and needs_ocr(held) and not entry.get("held")
+        if held is not None and not scan and docsource.unchanged(platform, entry, held["doc"]):
             records.append(held["record"])
             carried.append(str(entry["id"]))
             continue
@@ -109,7 +123,8 @@ def store(home, platform, files, carry=None):
             continue
         total += len(data)
         digest = _sha256(data)
-        if held is not None and held["record"]["files"][0].get("sha256") == digest:
+        if (held is not None and not scan
+                and held["record"]["files"][0].get("sha256") == digest):
             records.append(held["record"])
             carried.append(str(entry["id"]))
             continue
@@ -204,6 +219,57 @@ def with_carried(normalized, carry, carried):
                carried=len(kept))
     out.setdefault("schema", 2)
     return out
+
+
+def adopt_ocr(home):
+    """Put what the OCR lane read into the home, where a reader looks: `doc/ocr-<digest>.md`.
+
+    The lane (`assist.py`) writes `llm/<sha256>.md` and `llm/manifest_llm.json`, a folder nothing
+    delivers and no reader opens. Each text it read becomes `doc/ocr-<first 16 of the sha256>.md`,
+    whose first line names the file and says the text is a machine transcription of a scan. An
+    index entry with that sha256 and no text of its own gets `doc`, `chars` and `ocr: "read"`; one
+    the lane tried and got nothing from gets `ocr: "unread"`, so it is not tried every night.
+    Returns how many texts were adopted.
+    """
+    lane = os.path.join(home, "llm", "manifest_llm.json")
+    if not os.path.exists(lane):
+        return 0
+    with open(lane, encoding="utf-8") as fh:
+        report = json.load(fh)
+    doc_dir = os.path.join(home, "doc")
+    os.makedirs(doc_dir, exist_ok=True)
+    read = {}
+    for entry in report.get("documents") or []:
+        digest = entry.get("sha256")
+        source = os.path.join(home, entry.get("markdown") or "")
+        if not digest or not entry.get("markdown") or not os.path.exists(source):
+            continue
+        with open(source, encoding="utf-8") as fh:
+            text = fh.read()
+        name = "ocr-%s.md" % digest[:16]
+        with open(os.path.join(doc_dir, name), "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# %s\n\nOCR (Tesseract, %s): a machine transcription of a scan, not a text "
+                     "layer. Check a quote against the file before relying on it.\n\n%s\n"
+                     % (os.path.basename(entry.get("file") or name), report.get("model") or "",
+                        text))
+        read[digest] = ("doc/%s" % name, len(text))
+    tried = {e.get("sha256") for e in report.get("skipped_files") or []
+             if str(e.get("skipped") or "").startswith(("provider-", "provider_"))}
+    index_path = os.path.join(home, "index.json")
+    if not os.path.exists(index_path):
+        return len(read)
+    with open(index_path, encoding="utf-8") as fh:
+        index = json.load(fh)
+    for doc in index.get("documents") or []:
+        if doc.get("doc"):
+            continue
+        if doc.get("sha256") in read:
+            doc["doc"], doc["chars"] = read[doc["sha256"]]
+            doc["ocr"] = "read"
+        elif doc.get("sha256") in tried:
+            doc["ocr"] = "unread"
+    _write(home, "index.json", index)
+    return len(read)
 
 
 def _with_text(documents, normalized):
@@ -348,7 +414,12 @@ def fetch(target, out_root, document=None, with_text=True, previous=None, held=N
         index["documents"] = _with_text(index["documents"], normalized)
         index["text_documents"] = sum(1 for e in normalized["documents"] if e.get("markdown_path"))
         index["chars"] = normalized.get("chars", 0)
-        _write(home, "index.json", index)
+    # What the OCR lane made of a carried scan stays with it: the text is on the drive already.
+    for doc in index["documents"]:
+        held = carry.get(str(doc["id"])) if str(doc["id"]) in set(carried) else None
+        if held is not None and held["doc"].get("ocr") and not doc.get("doc"):
+            doc.update({k: held["doc"].get(k) for k in OCR_FIELDS})
+    _write(home, "index.json", index)
 
     state = None
     if changes_mod is not None:

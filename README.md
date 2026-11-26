@@ -354,6 +354,37 @@ every other field of the new one. When any field moved, `index.json` is uploaded
 run's record (`runs/<date>.json`) carries `index_moved` with those names, and so does the tender's
 row in `changes.json`. Its `status` stays `unchanged`: what the buyer published did not move.
 
+## Scans, read by OCR
+
+A PDF with no text layer is a scan, and the extractor names it `no text layer` in the text manifest
+and reads nothing from it (three of Billund af5c3ee1's documents, 24 Nov 2026). The toolchain image
+carries Tesseract with Danish and English (`dan+eng`); the night's step *Read what no decoder could*
+(`eis_tool.py scans`), and now `dk-fetch`'s too, runs the lane in `assist.py` over each home of the
+day. Until 26 Nov 2026 what it read stayed in `llm/` on the runner, which nothing delivers.
+
+**Into the home.** After the lane, `dk_fetch.adopt_ocr(home)` reads `llm/manifest_llm.json`. Each
+text the lane read (`documents`, with `sha256` and `markdown`, `llm/<sha256>.md`) becomes
+`doc/ocr-<first 16 characters of the sha256>.md`: a first line `# <file name>`, a line saying it is an
+OCR transcription of a scan (Tesseract and its languages) to be checked against the file before it is
+quoted, then the text. An index document with that `sha256` and no `doc` of its own gets `doc` (that
+file), `chars` (the text's length) and `ocr: "read"`; one the lane tried and got nothing from (a
+`skipped_files` entry whose `skipped` starts with `provider-`) gets `ocr: "unread"`. An index
+document that has a `doc` is left alone. It answers how many texts it adopted, and does nothing
+without a lane manifest.
+
+**Delivered.** The fingerprint does not know an OCR text, so the delivery sends every
+`doc/ocr-*.md` on the runner's disk: with the home when it moved, and on their own, before the index,
+when it did not. The index then names them and has moved, so it is sent too (above).
+
+**Read once.** The lane reads only files on the runner's disk, and a carried file is not there: a
+file named in the manifest and absent from the disk is skipped (`source-not-on-disk`), not read and
+not an error. A carried document keeps its index entry's `doc`, `chars` and `ocr` when the lane made
+them. A file the home holds whose index entry has no `doc` and no `ocr`, and whose text entries say
+`no text layer`, is not carried by the host's word or by its digest: it is downloaded and stored so
+the lane can read it once (`dk_fetch.needs_ocr(held)`), except a Comdia file handed over from the
+home's own index because the vendor page had not moved. A scan inside an archive is not read: the
+lane cannot reach a file that exists only inside one.
+
 ## Coverage proof
 
 Two controls, both hard. `day.json` carries the report and `tools/day_verdict.py` prints it.
