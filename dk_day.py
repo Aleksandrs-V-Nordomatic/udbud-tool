@@ -280,6 +280,18 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
         # What the home already holds -- on this disk, or on the drive a runner delivers to -- so
         # an unchanged file is carried over rather than downloaded again every night.
         held = homes.held(out_root, pid) if with_text else None
+        # A HOME NEVER GOES BACK TO AN OLDER NOTICE, ACROSS RUNS EITHER. The portal's newest-notice
+        # lookup above holds inside one run; the home's own history holds when the portal did not
+        # answer, or for a notice TED handed over.
+        kept = homes.newest_published(held)
+        if kept and target.get("published") and kept > target["published"]:
+            superseded.append(dict(_summary(target), kept_home=kept))
+            if target.get("watched"):
+                failed.append({"pid": pid, "ref": target["ref"], "kind": target["kind"],
+                               "watched": True,
+                               "reason": "the home holds a newer notice (published %s) than the "
+                                         "one udbud.dk answers; the home was left as it is" % kept})
+            continue
         try:
             done = dk_fetch.fetch(target, out_root, documents.get(target["notice_id"]),
                                   with_text=with_text,

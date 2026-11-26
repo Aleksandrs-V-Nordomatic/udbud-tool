@@ -114,6 +114,17 @@ the window held, fetched or gated, so the count of them stays readable.
 
 Two notices of one procedure in one window make one home; the older is named under `superseded`.
 
+**A home never goes back to an older notice, across runs either.** Before a tender is fetched, the
+newest notice its home has carried (`homes.newest_published(held)`) is compared with the `published`
+of the notice the run is about to read. When the home's is later, the tender is not fetched and the
+home is left as it is: the notice is named under `superseded` in `changes.json`, with `kept_home`
+set to the home's later `published`, and it is not among the day's `tenders`. A watched tender kept
+that way is also listed in `day.json`'s `lost` with `watched: true` and a reason that says the home
+holds a newer notice; a tender of the window is not lost, because the window was read whole. Seen on
+24 Nov 2026: reading 17 Nov after 23 Nov put a tender's first notice back over its amendment. The
+portal's newest-notice lookup (under *Coverage proof*, "A window read late") closes that inside one run; the home's
+own history closes it when the portal does not answer, and for a notice TED handed over.
+
 ## Where the documents are
 
 udbud.dk holds none. Each notice links the platform the buyer runs the tender on. `docsource/`
