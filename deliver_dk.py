@@ -128,6 +128,24 @@ def members(home, pid, date, run_id, index=None):
     return out
 
 
+# What the delivery itself writes into an index -- the run's stamps and the home's address -- and
+# so never counts as the index having moved. Only what the fetch wrote is compared.
+INDEX_VOLATILE = ("written_at", "date", "run_id", "run_file", "home", "archive", "index_file")
+
+
+def index_moves(old, new):
+    """The top-level fields that differ between the drive's `old` index and `new`, by name, sorted.
+
+    The fields the delivery stamps are left out. A home with no index on the drive moved in every
+    field `new` has.
+    """
+    new = new or {}
+    if not old:
+        return sorted(set(new) - set(INDEX_VOLATILE))
+    keys = (set(old) | set(new)) - set(INDEX_VOLATILE)
+    return sorted(k for k in keys if old.get(k) != new.get(k))
+
+
 def fill_carried(home, pid, home_root, current, drive, tok):
     """The texts a fetch carried over, taken from the drive, so the home's archive stays whole.
 
@@ -259,6 +277,18 @@ def deliver(out_root, date, run_id, drive, base, tok):
             graph.upload(drive, "%s/state.json" % home_root, state_bytes, tok)
             files += 1
             bytes_sent += len(state_bytes)
+        else:
+            # A TENDER THAT DID NOT MOVE CAN STILL HAVE AN INDEX THAT DID: the host's note on a
+            # gated home, the vendor page's signature. Left on the drive as it was, a gated card
+            # keeps saying what the host said a week ago. So the index alone is sent when any
+            # field of it moved, and the record names the fields.
+            moved = index_moves(graph.json_at(drive, "%s/index.json" % home_root, tok), index)
+            if moved:
+                data = json.dumps(index, ensure_ascii=False).encode("utf-8")
+                graph.upload(drive, "%s/index.json" % home_root, data, tok)
+                files += 1
+                bytes_sent += len(data)
+                record["index_moved"] = moved
 
         for dest, payload in (("seen.json", changes.seen(pid, was_seen, record, date)),
                               ("runs/%s.json" % date, record)):
@@ -278,6 +308,8 @@ def deliver(out_root, date, run_id, drive, base, tok):
         row["status"] = record["status"]
         row["moved"] = record.get("moves") or []
         row["change"] = changes.summary(record)
+        if record.get("index_moved"):
+            row["index_moved"] = record["index_moved"]
     for row in day.get("tenders", []):
         record = records.get(str(row["pid"]))
         if record is not None:

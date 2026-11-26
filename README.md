@@ -328,6 +328,17 @@ the documents carried.
 drive, tok)` takes each `doc/<key>.md` of the state that is not on disk out of the home's archive on
 the drive, then one by one, and answers how many it could not find.
 
+**An index that moved is delivered, even when the tender did not.** A procurement whose fingerprint
+did not move writes only `seen.json` and `runs/<date>.json` — but its `index.json` can still have
+moved: a new note from the host on a gated home, the vendor page's `documents_listing`. So the
+delivery reads the home's `index.json` from the drive and compares it with the one it would write.
+`deliver_dk.index_moves(old, new)` answers the sorted names of the top-level fields whose values
+differ, leaving out what the delivery itself stamps: `written_at`, `date`, `run_id` and `run_file`,
+which move every run, and `home`, `archive` and `index_file`, the home's address; with no old index,
+every other field of the new one. When any field moved, `index.json` is uploaded on its own, the
+run's record (`runs/<date>.json`) carries `index_moved` with those names, and so does the tender's
+row in `changes.json`. Its `status` stays `unchanged`: what the buyer published did not move.
+
 ## Coverage proof
 
 Two controls, both hard. `day.json` carries the report and `tools/day_verdict.py` prints it.
