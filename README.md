@@ -71,9 +71,26 @@ proceduren*. Over 474 competition notices in forty days, 51 procedures carried m
 notice. Keyed on `noticeId`, one tender would become two homes. Where a notice prints no procedure
 the home falls back to `int-<buyer>-<internal id>`, then `notice-<noticeId>`.
 
+**A plan or a market consultation that prints no procedure is keyed `notice-<noticeId>`**, never
+`int-`. Measured over the 35 plans of 9–25 Nov 2026: none printed a procedure, and the internal id
+is whatever the buyer typed — Holbæk Kommune's is `Holbæk Kommune`, and two plans of one fund both
+carry `KYC#1` — so `int-` would put two plans in one home. A plan that does print a procedure is
+keyed on it like a competition. udbud.dk and TED key a plan the same way, so both open one home.
+
 A card is **held by its procedure id**. The search's free text matches a procedure id and a
 notice id exactly and does not match a TED number, so `--targets` and `fetch` take a procedure id
-(`DK:<uuid>` or the bare uuid); a notice id is followed to its procedure's newest live notice.
+(`DK:<uuid>` or the bare uuid); a notice id is followed to its procedure's newest live notice. A
+plan's card is held by its home's name, `DK:notice-<noticeId>` or `notice-<noticeId>`: the lookup
+searches for the notice id (lower-cased), keeps only the notice that carries exactly that id, in any case — the free text also
+matches a notice that merely mentions it (measured: Amgros' plan `a183b490-…` came back under an
+unrelated competition) — and answers that plan while it is live.
+
+Where a procedure holds both, the lookup answers a competition before a plan, whichever is newer —
+also when it was asked for a plan that prints that procedure —
+and the day's newest-notice check (below) never puts a plan in place of a competition. A plan that
+prints a procedure is replaced by a newer competition of that procedure, which takes over the home;
+a plan keyed on its notice stays a home of its own, and the competition it announces arrives later
+as another.
 
 ## What a day fetches
 
@@ -87,7 +104,13 @@ answers.
 | `change` | `amendment` | through the gate; fetched |
 | `result`, `dir-awa-pre` | `award` | recorded in `changes.json` as a close |
 | `cont-modif` | `modification` | recorded as a close |
-| `planning`, `preplanning`, `consultation` | `plan` / `consultation` | recorded and counted |
+| `planning`, `preplanning`, `consultation` | `plan` / `consultation` | through the gate; fetched |
+
+A plan or a market consultation is a live notice like a competition: it passes the same recall gate,
+gets its detail, a home and its documents, and is listed under `tenders` (or `gated`) with its own
+`kind`. A plan whose detail answers 404 is lost like a competition and makes the day incomplete.
+`changes.json` `plans` (and `counts.plans`, `coverage.plans`) still names every plan and consultation
+the window held, fetched or gated, so the count of them stays readable.
 
 Two notices of one procedure in one window make one home; the older is named under `superseded`.
 
@@ -223,7 +246,7 @@ work/DK/
     state.json
   <date>/
     day.json           the window, the coverage report, what could not be proved
-    changes.json       what moved, what the gate cut, the closes, the plans
+    changes.json       what moved, what the gate cut, the closes, every plan the window held
 ```
 
 `documents_available` on every home and every day row:
@@ -258,7 +281,8 @@ tender is looked up on TED only when udbud.dk holds no notice of its procedure a
 2026-11-23: udbud.dk 28, TED 30, both read from TED.
 
 A window read late never puts an old notice over a newer one. For every competition past the gate
-the day asks udbud.dk for the newest live notice of its procedure; when one was published later, that
+the day asks udbud.dk for the newest live notice of its procedure that may take its place (a plan
+never takes a competition's); when one was published later, that
 one is fetched, the gate is not asked again, and the window's own is named under `superseded`. For a
 watched tender the newer notice is the one the watch lookup answers. An award never takes a competition
 out of the window, and a portal that does not answer keeps the window's notice.

@@ -44,8 +44,10 @@ UA = "Mozilla/5.0 (compatible; eis-tool)"
 PAGE = 100                        # the largest page the service hands out
 DETAIL_PACE = 0.2                 # seconds between detail calls; ~1 500 in 90 minutes never slowed it
 
-# `formulartypeKode` -> what the radar does with the notice. Only a competition is something a
-# company can still bid on; the rest are recorded and never fetched.
+# `formulartypeKode` -> what the radar does with the notice. A competition is something a company
+# can still bid on; a plan or a market consultation tells it one is coming, and the radar reads it
+# like a competition so the person reading the card can be in the dialogue before the tender. Awards
+# and modifications are recorded as closes and never fetched.
 KINDS = {
     "competition": "tender",
     "change": "amendment",
@@ -56,7 +58,9 @@ KINDS = {
     "preplanning": "plan",
     "consultation": "consultation",
 }
-LIVE_KINDS = ("tender", "amendment")
+BID_KINDS = ("tender", "amendment")
+PLAN_KINDS = ("plan", "consultation")
+LIVE_KINDS = BID_KINDS + PLAN_KINDS
 CLOSE_KINDS = ("award", "modification")
 
 NOTICE_DOCUMENT = "doc/notice.md"
@@ -125,6 +129,17 @@ def is_live(target):
     return target.get("kind") in LIVE_KINDS
 
 
+def supersedes(newer, older):
+    """Whether `newer`, a notice of the same procedure, may take the place of `older`.
+
+    Only a live notice may, and a plan never takes the place of a competition: the competition is
+    what a company bids on, and a market dialogue published beside it does not make it a plan.
+    """
+    if not is_live(newer):
+        return False
+    return newer.get("kind") in BID_KINDS or older.get("kind") in PLAN_KINDS
+
+
 def _value(text):
     try:
         return float(text) if text not in (None, "") else None
@@ -188,9 +203,16 @@ def labelled(html, label):
 def enrich(target, document):
     """Add what only the detail knows, and choose the home's key.
 
-    The key is the procedure. Where the notice prints none -- never seen in 174 of 174, but the
-    portal publishes old forms too -- it falls back to the buyer and its internal id, and then to
-    the notice itself, so a home is never `None` and never shared by two procedures.
+    The key is the procedure. Where the notice prints none -- never seen in 174 of 174
+    competitions, but the portal publishes old forms too -- it falls back to the buyer and its
+    internal id, and then to the notice itself, so a home is never `None` and never shared by two
+    procedures.
+
+    A PLAN WITHOUT A PROCEDURE IS KEYED ON ITS NOTICE. Measured over the 35 plans and market
+    dialogues of 9-25 Nov 2026: none printed a procedure, and their `Intern ID` is whatever the
+    buyer typed -- Holbæk Kommune's is `Holbæk Kommune`, and two plans of one fund carry the same
+    `KYC#1` -- so the internal id would put two plans in one home. The notice id is the one thing a
+    plan has that no other notice shares, and the search resolves it back to the notice.
     """
     html = (document or {}).get("htmlDA") or ""
     summary = (document or {}).get("opsummeringDA") or {}
@@ -200,6 +222,8 @@ def enrich(target, document):
     target["intern_id"] = intern
     if procedure:
         target["pid"] = procedure.lower()
+    elif target.get("kind") in PLAN_KINDS:
+        target["pid"] = "notice-%s" % target["notice_id"]
     elif target.get("buyer_id") and intern:
         target["pid"] = "int-%s-%s" % (target["buyer_id"], re.sub(r"[^\w.-]+", "_", intern))
     else:

@@ -117,6 +117,8 @@ def notice(record):
     # The same three steps as `dk_page.enrich`, so both sources open one home.
     if procedure_id:
         pid = procedure_id
+    elif kind in dk_page.PLAN_KINDS:
+        pid = "notice-%s" % notice_id
     elif buyer_id and intern:
         pid = "int-%s-%s" % (buyer_id, re.sub(r"[^\w.-]+", "_", intern))
     else:

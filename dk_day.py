@@ -14,9 +14,12 @@ Every row in the window gets its detail -- about forty requests on a busy day --
 detail is the only place the procedure is printed, and the procedure is the key: without it an
 award cannot close the card it answers, and an amendment cannot find the home it belongs in.
 
-ONLY A COMPETITION IS FETCHED. `competition` (and its amendments) is something a company can bid
-on. Awards and contract modifications are recorded as closes, keyed on the same procedure; plans
-and market consultations are recorded and counted; nothing else costs a document request.
+A COMPETITION, A PLAN OR A MARKET CONSULTATION IS FETCHED. `competition` (and its amendments) is
+something a company can bid on; a plan (`planning`, `preplanning`) or a market consultation says one
+is coming, and goes through the same gate into a home of its own, keyed `notice-<noticeId>` where it
+prints no procedure. `plans` in `changes.json` still names every one the window held, fetched or
+gated. Awards and contract modifications are recorded as closes, keyed on the same procedure;
+nothing else costs a document request.
 
     python3 dk_day.py 2026-09-02 --out work/DK --limit 5
 """
@@ -79,15 +82,16 @@ def _newest(target):
     """`(target, document)` of a newer notice of the same procedure, or None to keep this one.
 
     Only a live notice counts: an award may close one lot, or one purchase in a system that stays
-    open, so it never takes a competition out of the window. A portal that does not answer keeps
-    the notice the window named: it is never lost to this check.
+    open, so it never takes a competition out of the window; nor does a plan, which never takes the
+    place of a competition. A portal that does not answer keeps the notice the window named: it is
+    never lost to this check.
     """
     if not target.get("procedure_id"):
         return None
     try:
         newer = [t for t in dk_targets.procedure(target["procedure_id"])
                  if (t.get("published") or "") > (target.get("published") or "")
-                 and dk_page.is_live(t)]
+                 and dk_page.supersedes(t, target)]
         for candidate in newer:
             document = dk_page.detail(candidate["notice_id"], candidate["notice_version"],
                                       candidate["npn"])

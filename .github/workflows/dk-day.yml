@@ -26,7 +26,7 @@ on:
         required: false
         default: ""
       targets:
-        description: "Procedure ids to re-read whatever the gate says -- the cards somebody is still deciding about. One per line; DK:<procedureId> or the bare id"
+        description: "Procedure ids to re-read whatever the gate says -- the cards somebody is still deciding about. One per line; DK:<procedureId> or the bare id, DK:notice-<noticeId> for a plan"
         required: false
         default: ""
       limit:

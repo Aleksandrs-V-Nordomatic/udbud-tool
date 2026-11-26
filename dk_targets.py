@@ -27,6 +27,7 @@ year each -- the honest direction to be wrong in.
 """
 import argparse
 import datetime
+import re
 import sys
 
 import dk_page
@@ -109,20 +110,35 @@ def window(date_from, date_to=None):
     return [dk_page.notice(r) for r in rows(date_from, date_to)[1]]
 
 
+# A plan's home: `notice-` and a udbud.dk notice id, which is always a UUID.
+_PLAN_HOME = re.compile(r"^notice-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
+
+
+def _bare(reference):
+    """A card's key or a home's name without the board's `DK:` prefix."""
+    reference = str(reference or "").strip()
+    return reference[3:] if reference.upper().startswith("DK:") else reference
+
+
 def procedure(reference):
     """Every notice the portal holds for a procedure, newest first.
 
     The free-text search matches a `procedureId` and a `noticeId` exactly -- measured: a
     procedure id returned its two notices, a notice id its one -- and does NOT match a TED number,
-    which it splits into words. So a watched tender is held by its procedure id.
+    which it splits into words. So a watched tender is held by its procedure id, and a plan, which
+    prints none, by `notice-<noticeId>`: the home's key, of which the search is given the notice id.
     """
-    reference = str(reference or "").strip()
-    if reference.upper().startswith("DK:"):
-        reference = reference[3:]
+    reference = _bare(reference)
+    notice_id = reference[len("notice-"):].lower() if _PLAN_HOME.match(reference) else None
+    reference = notice_id or reference
     if not reference:
         return []
     answer = dk_page.search(text=reference, size=dk_page.PAGE)
     found = [dk_page.notice(r) for r in answer.get("resultatElementDtoList") or []]
+    if notice_id:
+        # The free text also matches a notice that merely mentions the id: measured on 26 Nov 2026,
+        # Amgros' plan a183b490-... came back second, under an unrelated competition.
+        found = [t for t in found if str(t.get("notice_id") or "").lower() == notice_id]
     found.sort(key=lambda t: (t.get("published") or "", t.get("notice_version") or ""),
                reverse=True)
     return found
@@ -132,21 +148,26 @@ def one(reference):
     """The newest live notice of a procedure, enriched from its detail, or None.
 
     A notice id finds one notice; its procedure is then asked for again, so an amendment
-    published since is the one returned.
+    published since is the one returned. A competition is answered before a plan of the same
+    procedure, whichever is newer; a plan is answered only where the procedure has no live
+    competition -- which is every plan measured so far, since none printed a procedure.
     """
-    candidates = procedure(reference)
-    for target in candidates:
+    plan = None
+    for target in procedure(reference):
         document = dk_page.detail(target["notice_id"], target["notice_version"], target["npn"])
         dk_page.enrich(target, document)
         if target.get("procedure_id") and target["procedure_id"].lower() != str(reference).lower():
-            newer = [t for t in procedure(target["procedure_id"]) if dk_page.is_live(t)]
+            newer = [t for t in procedure(target["procedure_id"]) if dk_page.supersedes(t, target)]
+            newer.sort(key=lambda t: t.get("kind") not in dk_page.BID_KINDS)   # a competition first
             if newer and newer[0]["notice_id"] != target["notice_id"]:
                 target = newer[0]
                 dk_page.enrich(target, dk_page.detail(target["notice_id"],
                                                       target["notice_version"], target["npn"]))
-        if dk_page.is_live(target):
+        if target.get("kind") in dk_page.BID_KINDS:
             return target
-    return None
+        if plan is None and dk_page.is_live(target):
+            plan = target
+    return plan
 
 
 def main(argv=None):
