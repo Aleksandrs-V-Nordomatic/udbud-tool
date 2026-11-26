@@ -117,12 +117,17 @@ class Day(unittest.TestCase):
         self.assertEqual(day["coverage"]["rows_held"], 6)
 
     def test_competition_rows_are_fetched_into_their_procedure_home(self):
+        # The window's plan ("Alfa plan", procedure P4) passes the gate too and is fetched
+        # like a competition (README, "What a day fetches"). The order is not stated.
         day, changes = self.run_day()
-        self.assertEqual(self.fetched(), [P1])
-        self.assertTrue(os.path.exists(os.path.join(self.out, "tenders", P1, "index.json")))
-        self.assertTrue(os.path.exists(os.path.join(self.out, "tenders", P1, "doc", "notice.md")))
-        self.assertEqual([t["pid"] for t in day["tenders"]], [P1])
-        self.assertEqual(day["tenders"][0]["home"], "tenders/%s" % P1)
+        self.assertEqual(sorted(self.fetched()), sorted([P1, P4]))
+        for pid in (P1, P4):
+            self.assertTrue(os.path.exists(os.path.join(self.out, "tenders", pid, "index.json")), pid)
+            self.assertTrue(os.path.exists(os.path.join(self.out, "tenders", pid, "doc", "notice.md")),
+                            pid)
+        self.assertEqual(sorted(t["pid"] for t in day["tenders"]), sorted([P1, P4]))
+        competition = [t for t in day["tenders"] if t["pid"] == P1][0]
+        self.assertEqual(competition["home"], "tenders/%s" % P1)
 
     def test_awards_go_to_closed_and_are_not_fetched(self):
         day, changes = self.run_day()
@@ -132,11 +137,15 @@ class Day(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(self.out, "tenders", P2)))
 
     def test_plans_are_recorded_and_counted(self):
+        # A plan past the gate is fetched and listed under `tenders` with its own kind;
+        # `plans` still names it and the counts still count it.
         day, changes = self.run_day()
         self.assertEqual([p["pid"] for p in changes["plans"]], [P4])
         self.assertEqual(changes["counts"]["plans"], 1)
         self.assertEqual(day["coverage"]["plans"], 1)
-        self.assertNotIn(P4, self.fetched())
+        self.assertIn(P4, self.fetched())
+        plan = [t for t in changes["tenders"] if t["pid"] == P4][0]
+        self.assertEqual(plan["kind"], "plan")
 
     def test_a_gated_row_is_recorded_whole_and_not_fetched(self):
         day, changes = self.run_day()
@@ -180,12 +189,14 @@ class Day(unittest.TestCase):
         self.assertTrue(day["complete"], "a watch hole does not make the window incomplete")
 
     def test_two_notices_of_one_procedure_make_one_home(self):
+        # Two fetches: the competition's procedure once, and the window's plan (P4).
         day, changes = self.run_day()
-        self.assertEqual(self.fetch.call_count, 1)
-        self.assertEqual(self.fetch.call_args.args[0]["notice_id"], "n-a2")
+        self.assertEqual(self.fetch.call_count, 2)
+        of_p1 = [c.args[0] for c in self.fetch.call_args_list if c.args[0]["pid"] == P1]
+        self.assertEqual([t["notice_id"] for t in of_p1], ["n-a2"])
         self.assertEqual([s["notice_id"] for s in changes["superseded"]], ["n-a1"])
-        homes = os.listdir(os.path.join(self.out, "tenders"))
-        self.assertEqual(homes, [P1])
+        homes = sorted(os.listdir(os.path.join(self.out, "tenders")))
+        self.assertEqual(homes, sorted([P1, P4]))
 
     def test_day_json_is_written_after_changes_json(self):
         self.run_day()

@@ -54,6 +54,15 @@ def detail(procedure, documents=()):
     return {"htmlDA": html, "htmlEN": "", "opsummeringDA": {"udbudsDokumenter": list(documents)}}
 
 
+def detail_without_procedure():
+    """A plan's detail as udbud.dk serves most of them: an internal id, no procedure."""
+    html = ('<html><body><section>2&nbsp;<span class="label">Procedure</span>'
+            '<section><span class="label">Intern ID</span>'
+            '<span class="text">: </span><span class="value">KYC#1</span></section>'
+            '</section></body></html>')
+    return {"htmlDA": html, "htmlEN": "", "opsummeringDA": {"udbudsDokumenter": []}}
+
+
 # The window of Wednesday 2026-09-02, read after the notices below it were published.
 OLD = row("n-old", "Alfa skole renovering", npn="00600001-2026")
 GATED = row("n-gated", "Omega kantinedrift")
@@ -61,6 +70,11 @@ NEW = row("n-new", "Alfa skole renovering", npn="00610001-2026", version="02",
           date="09-09-2026", change=True)
 AWARD = row("n-award", "Alfa skole renovering", code="result", npn="00620001-2026",
             date="20-10-2026")
+# Plans of the same procedure: two published after the window, one inside it (national).
+LATER_PLAN = row("n-later-plan", "Alfa skole renovering", code="planning", date="09-09-2026")
+LATER_CONSULTATION = row("n-later-cons", "Alfa skole renovering", code="consultation",
+                         date="16-09-2026")
+WINDOW_PLAN = row("n-window-plan", "Alfa skole renovering", code="planning")
 
 
 def no_network(*args, **kwargs):
@@ -73,10 +87,12 @@ class Newest(unittest.TestCase):
         self.out = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.out, True)
         self.details = {"n-old": detail(P1), "n-new": detail(P1), "n-award": detail(P1),
-                        "n-gated": detail(P3)}
+                        "n-gated": detail(P3), "n-later-plan": detail(P1),
+                        "n-later-cons": detail(P1), "n-window-plan": detail(P1)}
         self.held = {}
         self.asked = []
         self.unreachable = set()
+        self.eu = {"600001-2026"}
         for patcher in (mock.patch.object(net, "open_url", side_effect=no_network),
                         mock.patch.object(dk_page, "detail", side_effect=self.detail),
                         mock.patch.object(dk_targets, "procedure", side_effect=self.procedure),
@@ -85,7 +101,7 @@ class Newest(unittest.TestCase):
             self.addCleanup(patcher.stop)
 
     def ted(self, day):
-        return {"600001-2026"} if day == DATE else set()
+        return set(self.eu) if day == DATE else set()
 
     def detail(self, notice_id, version, npn, timeout=60):
         if notice_id in self.unreachable:
@@ -241,6 +257,47 @@ class Newest(unittest.TestCase):
         self.assertEqual(self.fetched, [(P1, "n-newest")])
         self.assertIn("n-old", self.superseded(changes))
         self.assertEqual(changes["tenders"][0]["published"], "2026-09-16")
+
+    # Plans and consultations (README, "Three ids" and "Coverage proof"): a plan never takes
+    # a competition's place; a newer competition takes a plan's.
+
+    def test_a_later_plan_never_takes_the_place_of_the_competition(self):
+        self.held[P1] = [LATER_PLAN, OLD]
+        day, changes = self.run_day()
+        self.assert_window_notice_kept(day, changes)
+        self.assertEqual(changes["tenders"][0]["kind"], "tender")
+
+    def test_a_later_consultation_never_takes_the_place_of_the_competition(self):
+        self.held[P1] = [LATER_CONSULTATION, LATER_PLAN, OLD]
+        self.assert_window_notice_kept(*self.run_day())
+
+    def test_a_later_plan_does_not_hide_a_later_amendment(self):
+        # The consultation is the newest notice of the procedure; the newest one that may take
+        # the competition's place is the amendment before it.
+        self.held[P1] = [LATER_CONSULTATION, NEW, OLD]
+        day, changes = self.run_day()
+        self.assertEqual(self.fetched, [(P1, "n-new")])
+        self.assertEqual(self.superseded(changes), ["n-old"])
+
+    def test_a_plan_that_prints_a_procedure_is_replaced_by_a_later_competition(self):
+        self.eu = set()
+        self.held[P1] = [NEW, WINDOW_PLAN]
+        day, changes = self.run_day(rows=(WINDOW_PLAN,))
+        self.assertEqual(self.fetched, [(P1, "n-new")])
+        self.assertEqual(self.homes(), [P1])
+        self.assertEqual(self.superseded(changes), ["n-window-plan"])
+        tender, = changes["tenders"]
+        self.assertEqual((tender["pid"], tender["kind"]), (P1, "amendment"))
+
+    def test_a_plan_keyed_on_its_notice_asks_for_no_lookup(self):
+        self.eu = set()
+        self.details["n-window-plan"] = detail_without_procedure()
+        day, changes = self.run_day(rows=(WINDOW_PLAN,))
+        self.assertEqual(self.asked, [])
+        self.assertEqual(self.fetched, [("notice-n-window-plan", "n-window-plan")])
+        self.assertEqual(self.homes(), ["notice-n-window-plan"])
+        self.assertEqual(changes["superseded"], [])
+        self.assertTrue(day["complete"], day)
 
 
 if __name__ == "__main__":

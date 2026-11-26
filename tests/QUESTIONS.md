@@ -260,3 +260,79 @@ existing test was found to contradict the README.
 6. **Is the target handed back unchanged?** The tests compare TED's target whole, and the portal's by
    `notice_id` and `pid` only. A mark such as `watched` is not stated.
 7. **`dk-fetch.yml` and the command it runs** when the answer is `(None, None)`: not tested.
+
+# Open questions — plans and market consultations judged like competitions
+
+For `test_dk_page.py` (`KindOf`, `PlanKey`, `Supersedes`), `test_dk_day.py`, `test_dk_day_plans.py`,
+`test_dk_day_newest.py` (the plan tests at its end), `test_dk_targets_plans.py` and
+`test_dk_ted_plans.py`. These were written without running them: no tool in the room runs code.
+
+## Existing tests rewritten to the new rule (the brief asked for it)
+- `test_dk_page.KindOf.test_live_and_close_kinds` used to assert that `plan` and `consultation` are
+  not live. It now asserts that they are, and that `award`, `modification` and `other` are not.
+- `test_dk_day.Day.test_plans_are_recorded_and_counted` used to assert that the plan is not fetched.
+  It now asserts that the plan is fetched, is listed under `tenders` with `kind` `plan`, and is
+  still named and counted in `plans`.
+- `test_dk_day.Day.test_competition_rows_are_fetched_into_their_procedure_home`: the fetched pids are
+  now `{P1, P4}`, where P4 is the window's plan "Alfa plan", which passes the gate. Both homes are
+  checked. The order is compared sorted because nothing states it.
+- `test_dk_day.Day.test_two_notices_of_one_procedure_make_one_home`: two fetches. P1's one fetch is
+  `n-a2`, `n-a1` is superseded, and the homes are `{P1, P4}`.
+- None of these was weakened: each still checks what it checked before for the competition.
+- Earlier question 6 under "notices only TED holds" is now answered **for plans only**
+  (`notice-<noticeId>`). For competitions with the same buyer and the same internal id it stays
+  open, and `test_dk_ted.NoProcedure` was left unchanged.
+- Earlier question 17 under TED is answered for `planning`. `test_dk_ted_plans.py` tests only that
+  value. Whether TED's `consultation` and `preplanning` map as in `dk_page.KINDS` is not tested.
+
+## Left open
+1. **The order** of `tenders`, of the fetches and of `plans` in a window that holds a plan is not
+   stated. The tests compare sorted lists or look an entry up by `pid`.
+2. **A watched plan that prints a procedure.** The card is `DK:notice-<uuid>`, but the home is the
+   procedure's. Does the day count the watch as answered? And is a later competition of that
+   procedure fetched in its place? Not tested.
+3. **`one("DK:notice-<uuid>")` where the plan prints procedure P, and P holds a newer plan and an
+   older competition.** "Its newest notice that `supersedes` the found one" picks the newer plan
+   (plan over plan is True). "A competition is answered before a plan, whichever is newer" picks the
+   competition. Which wins? Not tested. The competition-first test asks for P directly.
+4. **The case of the uuid** after `notice-`: is it searched as written or lower-cased? The tests use
+   a lower-case uuid and only vary the case of `DK:` and `notice-`.
+5. **What a gated plan entry holds**, `kind` for instance. The tests check `pid`, `notice_id` and
+   `title` only.
+6. **A lost plan.** The tests find it in `day["lost"]` by `ref` (its `noticeId`, since it is
+   national). Its `pid`, and whether it counts in `coverage.failed`, are not tested.
+7. **`supersedes(newer, older)` when `older` is a close** (a tender over an award), and two notices of
+   different procedures: not stated, not tested.
+8. **Does a plan whose detail is gone still count in `plans` / `counts.plans`?** "Every plan the
+   window held" suggests yes. Not tested.
+9. **TED-only plans** (earlier question 20 under "The day"): do they count in `plans` and in
+   `from_ted`? Not tested.
+10. **How the internal id is cleaned** in an `int-` key (`#`, spaces, `/`). `test_dk_page.py` shows
+    `TS 2385/59` → `TS_2385_59`. The plan tests avoid relying on it, except to check that no
+    `int-` home appears.
+11. **`dk_page.PAGE`** is assumed to exist, as the brief's `procedure` signature names it.
+12. **`_newest` and the plans of `test_dk_day.py`:** that file does not patch `dk_targets.procedure`,
+    so the plan's lookup (P4 prints a procedure) gets the whole window as its answer. Every row has
+    the same date, so nothing should win. This is the same as earlier question 10 under "A window
+    read late".
+
+## Second pass (`test_dk_targets_plan_lookup.py`)
+- **Questions 3 and 4 above are answered.** 3: the competition wins; among the newer notices of P
+  that `supersedes` the found plan, a bid-kind one comes before a plan-kind one, the newest first
+  in each group. 4: the uuid is lower-cased before the search, and the notices that come back are
+  compared to it without regard to case. Both are tested in the new file. So is the new rule that a
+  `notice-<uuid>` reference keeps only the rows whose `noticeId` is that uuid.
+- No existing test contradicts the new rule. The `notice-…` references in `test_dk_targets.py`
+  (`notice-1`, `notice-9`) are not followed by a uuid, so they are not filtered, and the rows in
+  `test_dk_targets_plans.py` that a home name finds all carry that uuid.
+
+Still open from this pass, and not tested:
+13. **A competition of P published before the plan that was asked for.** Is it among "the newer
+    notices of P"? "Whichever is newer" suggests it would be answered too. In the tests every
+    competition of P comes after the plan that was asked for.
+14. **P holds nothing that `supersedes` the plan** (only an award after it, say). Is the plan itself
+    answered with `pid` P, or None? Not tested.
+15. **Two rows that both carry the uuid** (two versions of the plan) after the filter: both kept,
+    newest first? Not tested.
+16. **The `noticeId` the answer carries** when the reference's case differs from the portal's: the
+    tests take it as the portal prints it.

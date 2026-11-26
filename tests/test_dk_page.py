@@ -135,10 +135,18 @@ class KindOf(unittest.TestCase):
         self.assertEqual(dk_page.kind_of({}), "other")
 
     def test_live_and_close_kinds(self):
-        self.assertTrue(dk_page.is_live({"kind": "tender"}))
-        self.assertTrue(dk_page.is_live({"kind": "amendment"}))
-        for kind in ("award", "modification", "plan", "consultation", "other"):
+        # A plan or a market consultation is a live notice like a competition (README,
+        # "What a day fetches"); only awards, modifications and the unknown are not.
+        for kind in ("tender", "amendment", "plan", "consultation"):
+            self.assertTrue(dk_page.is_live({"kind": kind}), kind)
+        for kind in ("award", "modification", "other"):
             self.assertFalse(dk_page.is_live({"kind": kind}), kind)
+
+    def test_the_groups_of_kinds(self):
+        self.assertEqual(tuple(dk_page.BID_KINDS), ("tender", "amendment"))
+        self.assertEqual(tuple(dk_page.PLAN_KINDS), ("plan", "consultation"))
+        self.assertEqual(tuple(dk_page.LIVE_KINDS), ("tender", "amendment", "plan", "consultation"))
+        self.assertEqual(tuple(dk_page.CLOSE_KINDS), ("award", "modification"))
 
 
 class Notice(unittest.TestCase):
@@ -264,6 +272,95 @@ class Enrich(unittest.TestCase):
         self.assertEqual(dk_page.labelled(html, "Officielt navn"), "Bygge & Anlæg")
         self.assertIsNone(dk_page.labelled(html, "Intern ID"))
         self.assertIsNone(dk_page.labelled(None, "Intern ID"))
+
+
+PLAN_NOTICE = "3f1d2c4b-5a69-4788-9a0b-c1d2e3f40001"
+OTHER_PLAN_NOTICE = "3f1d2c4b-5a69-4788-9a0b-c1d2e3f40002"
+
+
+class PlanKey(unittest.TestCase):
+    """README "Three ids": a plan or a consultation with no procedure is keyed on its notice."""
+
+    def plan(self, code="planning", notice_id=PLAN_NOTICE, document=None):
+        r = row(formulartypeKode=code, noticeId=notice_id)
+        return dk_page.enrich(dk_page.notice(r), document)
+
+    def test_a_plan_with_buyer_and_internal_id_is_keyed_on_its_notice(self):
+        t = self.plan(document=detail(procedure=None, intern="TS238559"))
+        self.assertEqual(t["kind"], "plan")
+        self.assertEqual(t["buyer_id"], "34208115")
+        self.assertEqual(t["pid"], "notice-%s" % PLAN_NOTICE)
+
+    def test_a_preplanning_notice_too(self):
+        t = self.plan(code="preplanning", document=detail(procedure=None, intern="TS238559"))
+        self.assertEqual(t["pid"], "notice-%s" % PLAN_NOTICE)
+
+    def test_a_consultation_too(self):
+        t = self.plan(code="consultation", document=detail(procedure=None, intern="TS238559"))
+        self.assertEqual(t["kind"], "consultation")
+        self.assertEqual(t["pid"], "notice-%s" % PLAN_NOTICE)
+
+    def test_two_plans_of_one_buyer_and_one_internal_id_get_two_homes(self):
+        first = self.plan(document=detail(procedure=None, intern="KYC#1"))
+        second = self.plan(notice_id=OTHER_PLAN_NOTICE, document=detail(procedure=None, intern="KYC#1"))
+        self.assertEqual(first["pid"], "notice-%s" % PLAN_NOTICE)
+        self.assertEqual(second["pid"], "notice-%s" % OTHER_PLAN_NOTICE)
+        self.assertNotEqual(first["pid"], second["pid"])
+
+    def test_a_plan_that_prints_a_procedure_is_keyed_on_it(self):
+        t = self.plan(document=detail())
+        self.assertEqual(t["pid"], PROCEDURE)
+
+    def test_a_consultation_that_prints_a_procedure_is_keyed_on_it(self):
+        t = self.plan(code="consultation", document=detail())
+        self.assertEqual(t["pid"], PROCEDURE)
+
+    def test_a_competition_with_no_procedure_still_gets_int(self):
+        t = dk_page.enrich(dk_page.notice(row(noticeId=PLAN_NOTICE)),
+                           detail(procedure=None, intern="TS238559"))
+        self.assertEqual(t["pid"], "int-34208115-TS238559")
+
+
+class Supersedes(unittest.TestCase):
+    """Which notice of one procedure may take the place of another."""
+
+    CODES = {"tender": ("competition", False), "amendment": ("change", False),
+             "plan": ("planning", False), "consultation": ("consultation", False),
+             "award": ("result", False), "modification": ("cont-modif", False)}
+
+    def target(self, kind, notice_id, date):
+        code, change = self.CODES[kind]
+        r = row(formulartypeKode=code, erAendring=change, noticeId=notice_id, publiceringsdato=date)
+        t = dk_page.enrich(dk_page.notice(r), detail())
+        self.assertEqual(t["kind"], kind)
+        self.assertEqual(t["pid"], PROCEDURE)
+        return t
+
+    def supersedes(self, newer, older):
+        return dk_page.supersedes(self.target(newer, "n-newer", "09-09-2026"),
+                                  self.target(older, "n-older", "02-09-2026"))
+
+    def test_a_competition_takes_the_place_of_a_plan(self):
+        for newer in ("tender", "amendment"):
+            for older in ("plan", "consultation"):
+                self.assertTrue(self.supersedes(newer, older), (newer, older))
+
+    def test_a_plan_never_takes_the_place_of_a_competition(self):
+        for newer in ("plan", "consultation"):
+            for older in ("tender", "amendment"):
+                self.assertFalse(self.supersedes(newer, older), (newer, older))
+
+    def test_a_plan_takes_the_place_of_a_plan(self):
+        self.assertTrue(self.supersedes("plan", "plan"))
+
+    def test_a_competition_takes_the_place_of_a_competition(self):
+        self.assertTrue(self.supersedes("amendment", "tender"))
+        self.assertTrue(self.supersedes("tender", "tender"))
+
+    def test_a_close_takes_the_place_of_nothing(self):
+        for newer in ("award", "modification"):
+            for older in ("tender", "amendment", "plan", "consultation", "award"):
+                self.assertFalse(self.supersedes(newer, older), (newer, older))
 
 
 class HtmlMarkdown(unittest.TestCase):
