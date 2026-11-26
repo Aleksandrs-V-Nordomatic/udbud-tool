@@ -139,6 +139,12 @@ def listing(urls):
     return {"access": access, "files": files, "gated": unseen, "tender_id": tender, "note": note}
 
 
+def unchanged(entry, held):
+    """The same file at the same version: the version is in the preview address."""
+    return (str(entry.get("id")) == str(held.get("id")) and entry.get("name") == held.get("name")
+            and entry.get("download") == held.get("download"))
+
+
 def download(entry):
     """The PDF the public viewer shows for one file."""
     context = {"domain": "etendering", "resourceid": entry["tender"],

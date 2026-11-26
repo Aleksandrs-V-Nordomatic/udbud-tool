@@ -40,5 +40,13 @@ def listing(urls):
     return {"access": access, "files": files, "gated": gated, "tender_id": tender}
 
 
+def unchanged(entry, held):
+    """The same record with the same name and the same `length`; a file without a length is
+    downloaded."""
+    return (entry.get("id") is not None and str(entry.get("id")) == str(held.get("id"))
+            and entry.get("name") == held.get("name")
+            and entry.get("bytes") is not None and entry.get("bytes") == held.get("bytes"))
+
+
 def download(entry):
     return common.plain_download(entry, headers={"Accept": "*/*"})

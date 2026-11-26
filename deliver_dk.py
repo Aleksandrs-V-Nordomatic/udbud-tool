@@ -43,10 +43,12 @@ than paths.
 """
 
 import argparse
+import io
 import json
 import os
 import sys
 import time
+import zipfile
 
 import changes
 import country
@@ -126,6 +128,52 @@ def members(home, pid, date, run_id, index=None):
     return out
 
 
+def fill_carried(home, pid, home_root, current, drive, tok):
+    """The texts a fetch carried over, taken from the drive, so the home's archive stays whole.
+
+    A file the home already held unchanged is not downloaded or read again (`dk_fetch.store`), so
+    its `doc/<key>.md` is on the drive and not on this disk. A procurement that did not move needs
+    none of it. One that moved rebuilds `<pid>.zip`, which holds every text: those are read out of
+    the archive already on the drive, one request, and any it lacks one by one. Returns how many
+    could not be found.
+    """
+    doc_dir = os.path.join(home, "doc")
+    missing = [k for k in sorted((current or {}).get("documents") or {})
+               if not os.path.exists(os.path.join(doc_dir, "%s.md" % k))]
+    if not missing:
+        return 0
+    os.makedirs(doc_dir, exist_ok=True)
+    try:
+        archive = graph.bytes_at(drive, "%s/%s.zip" % (home_root, pid), tok)
+    except SystemExit:
+        archive = None
+    if archive:
+        try:
+            with zipfile.ZipFile(io.BytesIO(archive)) as zf:
+                names = set(zf.namelist())
+                for key in missing:
+                    if "doc/%s.md" % key in names:
+                        with open(os.path.join(doc_dir, "%s.md" % key), "wb") as fh:
+                            fh.write(zf.read("doc/%s.md" % key))
+        except zipfile.BadZipFile:
+            pass
+    lost = 0
+    for key in missing:
+        path = os.path.join(doc_dir, "%s.md" % key)
+        if os.path.exists(path):
+            continue
+        try:
+            data = graph.bytes_at(drive, "%s/doc/%s.md" % (home_root, key), tok)
+        except SystemExit:
+            data = None
+        if data is None:
+            lost += 1
+            continue
+        with open(path, "wb") as fh:
+            fh.write(data)
+    return lost
+
+
 def deliver(out_root, date, run_id, drive, base, tok):
     """One day's homes and one day's two files. Returns the counts worth printing."""
     day_dir = os.path.join(out_root, date)
@@ -172,6 +220,11 @@ def deliver(out_root, date, run_id, drive, base, tok):
         records[pid] = record
         tally[record["status"]] = tally.get(record["status"], 0) + 1
 
+        if changes.refreshed(record) and record.get("status") != "new":
+            lost = fill_carried(home, pid, home_root, current, drive, tok)
+            if lost:
+                print("  %d carried text(s) of %s were not on the drive" % (lost, pid),
+                      file=sys.stderr)
         index = delivered_index(home, pid, date, run_id)
         contents = members(home, pid, date, run_id, index=index)
 

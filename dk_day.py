@@ -32,6 +32,7 @@ import time
 
 import dk_fetch
 import dk_page
+import homes
 import dk_recon
 import dk_targets
 import dk_ted
@@ -276,10 +277,15 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
             continue
         home = os.path.join(out_root, "tenders", pid)
         previous_state = _read(os.path.join(home, "state.json"))
+        # What the home already holds -- on this disk, or on the drive a runner delivers to -- so
+        # an unchanged file is carried over rather than downloaded again every night.
+        held = homes.held(out_root, pid) if with_text else None
         try:
             done = dk_fetch.fetch(target, out_root, documents.get(target["notice_id"]),
                                   with_text=with_text,
-                                  previous=_read(os.path.join(home, "procurement.json")))
+                                  previous=((held or {}).get("procurement")
+                                            or _read(os.path.join(home, "procurement.json"))),
+                                  held=held)
         except Exception as exc:                       # one tender must not lose the day
             failed.append({"pid": pid, "ref": target["ref"], "kind": target["kind"],
                            "watched": bool(target.get("watched")),
@@ -304,6 +310,7 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
             "documents_host": done["documents_host"],
             "link_verified": done["link_verified"],
             "documents": done["documents"], "withheld": done["withheld"],
+            "carried": done.get("carried", 0),
             "uncatalogued": done["uncatalogued"],
             "moved": (record or {}).get("moves") or [],
         })
@@ -311,6 +318,7 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
             "pid": pid, "ref": target["ref"], "kind": target["kind"], "status": status,
             "watched": bool(target.get("watched")), "home": "tenders/%s" % pid,
             "documents": done["documents"], "bytes": done["bytes"],
+            "carried": done.get("carried", 0),
             "documents_available": done["documents_available"],
             "documents_host": done["documents_host"],
             "link_verified": done["link_verified"], "title": target["title"],
@@ -357,6 +365,7 @@ def run(date, out_root, limit=None, run_id=None, policy=None, watch=None, date_t
         "counts": dict(by_status, tenders=len(delivered), gated=len(gated), watched=watched_count,
                        closed=len(closed), plans=len(plans),
                        documents=sum(t["documents"] for t in delivered),
+                       carried=sum(t["carried"] for t in delivered),
                        bytes=sum(t["bytes"] for t in delivered)),
         "documents_available": by_access,
         "reconciliation": proof,

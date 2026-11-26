@@ -107,6 +107,14 @@ jobs:
           EIS_COUNTRY: DK
           LIMIT: ${{ inputs.limit }}
           TARGETS: ${{ inputs.targets }}
+          # Read, never written, by the fetch: what each tender's home already holds on the
+          # drive, so a file that has not changed is carried over instead of downloaded again.
+          # On 25 Nov 2026 the watched tenders were 4.6 GB of a 4.7 GB night.
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_DEST_ROOT: ${{ secrets.GRAPH_DEST_ROOT }}
           # The supplier account `docsource/comdia.py` opens Comdia tenders with: it presses
           # Access to tender on each Comdia tender that reaches the fetch, which the buyer sees.
           COMDIA_USER: ${{ secrets.COMDIA_USER }}

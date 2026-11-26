@@ -191,12 +191,16 @@ def main(argv=None):
             print("fetch: no live notice for %s -- awarded, cancelled or withdrawn" % args.reference,
                   file=sys.stderr)
             return 1
+        import homes
         out = os.path.join(args.out, code)
-        done = dk_fetch.fetch(target, out, document)
+        held = homes.held(out, target["pid"])
+        done = dk_fetch.fetch(target, out, document,
+                              previous=(held or {}).get("procurement"), held=held)
         _, folder = dk_day.one_tender(target, done, out)
-        print("%s (%s): %d of %d document(s), %.1f MB, documents %s on %s -> %s"
+        print("%s (%s): %d of %d document(s), %.1f MB downloaded, %d carried over, "
+              "documents %s on %s -> %s"
               % (done["ref"], done["pid"], done["documents"], done["catalogued"],
-                 done["bytes"] / 1048576.0, done["documents_available"],
+                 done["bytes"] / 1048576.0, done.get("carried", 0), done["documents_available"],
                  done["documents_host"], done["home"]))
         if done["index"].get("documents_note"):
             print("  the host said: %s" % done["index"]["documents_note"])
@@ -231,6 +235,8 @@ def main(argv=None):
                  day["coverage"]["delivered"], day["coverage"]["targets"],
                  day["coverage"]["gated"], day["coverage"]["closed"],
                  day["counts"]["documents"], day["documents_available"], out))
+        print("  downloaded %.1f MB; %d document(s) carried over unchanged from their homes"
+              % (day["counts"].get("bytes", 0) / 1e6, day["counts"].get("carried", 0)))
         if day.get("reconciliation"):
             print("  %s" % dk_recon.line(day["reconciliation"]))
         if day.get("discovery_error"):

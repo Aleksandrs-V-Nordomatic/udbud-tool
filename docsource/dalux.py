@@ -127,5 +127,12 @@ def listing(urls):
     return {"access": "public" if files else "none", "files": files, "tender_id": tid}
 
 
+def unchanged(entry, held):
+    """The same file revision: Dalux gives a replaced file a new `areaFileRevisionID`, and the
+    revision is both the id and part of the download address."""
+    return (str(entry.get("id")) == str(held.get("id")) and entry.get("name") == held.get("name")
+            and entry.get("download") == held.get("download"))
+
+
 def download(entry):
     return common.plain_download(entry)

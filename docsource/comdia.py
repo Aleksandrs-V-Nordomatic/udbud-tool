@@ -49,9 +49,11 @@ which lands in the tender's privately delivered `index.json`. The account is mas
 
     python3 tools/comdia_check.py     # sign in, say whether it worked, press nothing
 """
+import hashlib
 import html as htmlmod
 import http.cookiejar
 import io
+import json
 import os
 import re
 import sys
@@ -331,16 +333,74 @@ def archive_files(archive, source):
     return files
 
 
-def listing(urls, facts=None):
+GRID = re.compile(r'(?s)<table[^>]*id="[^"]*gvDocument"[^>]*>(.*?)</table>')
+ROW = re.compile(r"(?s)<tr[^>]*>(.*?)</tr>")
+CELL = re.compile(r"(?s)<td([^>]*)>(.*?)</td>")
+NAME_LINK = re.compile(r'(?s)<a[^>]*id="[^"]*lbDownload"[^>]*>(.*?)</a>')
+
+
+def _text(fragment):
+    return re.sub(r"\s+", " ", htmlmod.unescape(re.sub(r"<[^>]+>", " ", fragment))).strip()
+
+
+def listing_signature(page):
+    """A digest of the files the vendor page lists, or None when it shows no document table.
+
+    Per row: the group it is filed under, the file's name, and the two cells after the marker --
+    what the row says about the file and its date. The "Not downloaded" marker is left out, and so
+    is anything else in the name cell but the name: those say what our company did, not what the
+    buyer published. A buyer who adds, removes, renames or re-dates a file moves the digest.
+    """
+    tables = GRID.findall(page or "")
+    if not tables:
+        return None
+    rows, group = [], ""
+    for table in tables:
+        for row in ROW.findall(table):
+            cells = CELL.findall(row)
+            if not cells:
+                continue
+            if len(cells) == 1 and "group" in cells[0][0]:
+                group = _text(cells[0][1])
+                continue
+            name = NAME_LINK.search(cells[0][1])
+            if name is None:
+                continue
+            rows.append([group, _text(name.group(1))] + [_text(c[1]) for c in cells[2:]])
+    if not rows:
+        return None
+    return hashlib.sha256(json.dumps(rows, ensure_ascii=False).encode("utf-8")).hexdigest()[:24]
+
+
+def unchanged(entry, held):
+    """An entry `listing` made from the home's own index, because the vendor page had not moved."""
+    return bool(entry.get("held")) and str(entry.get("id")) == str(held.get("id"))
+
+
+def _held_files(held, vendor_url):
+    files = []
+    for doc in held.get("documents") or []:
+        folder, _, _ = str(doc.get("title") or "").rpartition("/")
+        files.append({"id": doc.get("id"), "name": doc.get("name"), "folder": folder,
+                      "member": None, "bytes": doc.get("bytes"), "download": vendor_url,
+                      "held": True})
+    return files
+
+
+def listing(urls, facts=None, held=None):
     """The tender as `_read` found it; `files` is always there, empty when nothing was read."""
-    return dict({"files": []}, **_read(urls, facts))
+    return dict({"files": []}, **_read(urls, facts, held))
 
 
-def _read(urls, facts=None):
+def _read(urls, facts=None, held=None):
     """Sign in, open the tender, download its archive, and list its members.
 
     `facts` is what the notice says of the tender: its CPV codes, and whether a card watches it,
     decide whether Access to prequalification may be pressed. Without them it may not.
+
+    `held` is the index the home already holds. When its `documents_listing` is the signature of
+    the vendor page as it stands, and the home read every file, the archive is not downloaded:
+    the files are the home's own, marked `held`, and `unchanged` answers yes for each of them.
     """
     facts = facts or {}
     prequalify = bool(facts.get("watched")) or building_work(
@@ -362,6 +422,12 @@ def _read(urls, facts=None):
             return {"access": "gated", "note": reason}
         buttons = [c for c in controls(page) if DOWNLOAD_ALL.fullmatch(c)]
         on_page = len({c for c in controls(page) if PER_FILE.search(c)})
+        signature = listing_signature(page)
+        if (held and signature and held.get("documents_listing") == signature
+                and held.get("documents_available") == "public" and held.get("documents")):
+            return {"access": "public", "files": _held_files(held, vendor_url),
+                    "tender_id": tender_id(url), "listing": signature, "unchanged": True,
+                    "note": held.get("documents_note") or ""}
         if not buttons:
             if on_page:
                 return {"access": "gated", "note": "the vendor page lists %d file(s) and no Download all" % on_page}
@@ -391,7 +457,7 @@ def _read(urls, facts=None):
                          % ", ".join("%d .%s" % (n, e) for e, n in sorted(skipped.items())))
         note = "; ".join(notes)
         return {"access": "public" if files else "none", "files": files, "tender_id": tender_id(url),
-                "note": note}
+                "listing": signature, "note": note}
     except SignInFailed as exc:
         return {"access": "gated", "note": "Comdia sign-in failed: %s" % _mask(exc)}
     except Exception as exc:                   # one tender must not lose the night

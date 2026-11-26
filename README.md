@@ -264,6 +264,70 @@ artefact, and a card's quote is verified against the home's `doc/*.md` and nothi
 the facts as labelled lines, then the buyer's description exactly as `index.json` holds it, then
 the whole notice as udbud.dk renders it.
 
+## A home read again
+
+A watched tender is read every night. On 25 Nov 2026 nine watched tenders were 4.6 GB of the night's
+4.7 GB and about 35 of its 38 fetch minutes, for homes the delivery then called `unchanged`. So a file
+the home already holds, unchanged, is **carried over**: not downloaded, not stored, not read again.
+
+**What the home holds.** `homes.held(out_root, pid)` answers a dict with `index`, `manifest`,
+`normalized` (the text manifest), `procurement`, `state`, and `where` (`disk` or `drive`), or None.
+It reads `tenders/<pid>/` on the local disk first; a home counts only when its `index.json` and
+`state.json` are both there. Otherwise, when all five `GRAPH_*` variables are set, it reads the same
+files from the drive the delivery writes to (`<GRAPH_DEST_ROOT>/DK/tenders/<pid>/`), asking for
+`state.json` first and nothing more when it is absent. It never raises: a drive that does not answer
+is None, and the fetch downloads everything. `homes.newest_published(held)` is the latest
+`published` among `procurement["notices"]` and `procurement["published"]`, or None. The night's
+fetch step and `dk-fetch`'s fetch step are given the `GRAPH_*` secrets to read with; neither writes.
+
+**Which files may be carried.** `dk_fetch.carriable(held, tool)` answers `{record id: {"record",
+"doc", "texts"}}` — the home's manifest record, its index entry with the same id, and the text
+manifest's entries whose `record_id` is that id. It answers `{}` when there is no home, no text
+manifest, or when the home's `state["tool"]` is not `tool`, the extractor version of this run
+(`changes.pipeline_version()`): text made by another version must be refreshed, and that needs the
+file. A record is carriable only with exactly one file and an index entry.
+
+**When a file is the same.** `dk_fetch.store(home, platform, files, carry)` answers `(records,
+withheld, bytes, carried ids)`. For each listed file whose id is carriable and whose title
+(`folder/name`) is the record's title:
+
+- the host is asked first, `docsource.unchanged(platform, entry, held_doc)`. **Dalux** says yes when
+  the id (the file's revision), the name and the download address equal the index entry's;
+  **iBinder** the same (the version is in the preview address); **ethics.dk** when the id, the name
+  and a known `bytes` equal it. Every other host says no. A yes carries the record without a
+  download.
+- otherwise the file is downloaded, and when its sha256 is the record's, the record is carried and
+  nothing is written to `originals/`.
+
+A carried record keeps its file name; a new file is never given the name of a listed file the home
+holds, and a changed file reuses its own. `bytes` counts only what was downloaded.
+
+**Comdia, by its vendor page.** `comdia.listing_signature(page)` is a digest of the vendor page's
+document table (`…gvDocument`): for each row, the group it is filed under, the file name (the text of
+its `lbDownload` link only) and the cells after the "Not downloaded" marker; the marker and anything
+else in the name cell are left out. A page with no such table, or no file rows, is None. The listing
+carries it as `listing`, and the home's `index.json` keeps it as `documents_listing`. When
+`docsource.listing(urls, facts, held=index)` is handed the home's index, its `documents_listing`
+equals the page's signature, its `documents_available` is `public` and it lists documents, the
+archive is **not downloaded**: the files are the index's own, each marked `held`, with
+`unchanged: True` on the listing and the index's note kept, and `comdia.unchanged` answers yes for a
+`held` entry with the same id. When a `held` file is not carriable, `dk_fetch` lists the tender
+again without the index.
+
+**The text.** The extractor is shown only the files read tonight; `dk_fetch.with_carried(normalized,
+carry, carried)` adds the carried files' own text entries, each with its `doc` (`doc/<key>.md`, the
+key as `changes.document_key`), makes the unreadable list again over both without repeating a file,
+and sets `entries`, `markdown`, `unsupported`, `chars` and `carried`. The fingerprint and the index
+are made from that, so a tender whose files did not move is `unchanged` and an added or replaced file
+is reported as before. `dk_fetch.fetch(..., held=held)` returns `carried`; each day row carries
+`carried`, `day.json`'s counts carry `carried`, and the run's log prints the megabytes downloaded and
+the documents carried.
+
+**The delivery.** A carried text is on the drive and not on the runner. A procurement that moved
+(and is not `new`) rebuilds `<pid>.zip`, so `deliver_dk.fill_carried(home, pid, home_root, current,
+drive, tok)` takes each `doc/<key>.md` of the state that is not on disk out of the home's archive on
+the drive, then one by one, and answers how many it could not find.
+
 ## Coverage proof
 
 Two controls, both hard. `day.json` carries the report and `tools/day_verdict.py` prints it.

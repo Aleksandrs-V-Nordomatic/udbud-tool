@@ -56,11 +56,12 @@ def module_for(url):
     return None
 
 
-def listing(urls, facts=None):
+def listing(urls, facts=None, held=None):
     """What the tender's documents link leads to. `urls` is `udbudsDokumenter`, in order.
 
     `facts` is the notice's own record. Only Comdia asks for it, to decide whether it may open a
-    two-stage tender.
+    two-stage tender. `held` is the index the tender's home already holds; only Comdia asks for
+    it, to leave an archive whose vendor page has not moved where it lies.
     """
     urls = [u for u in (urls or []) if u]
     if not urls:
@@ -71,7 +72,8 @@ def listing(urls, facts=None):
         return {"host": host_of(urls[0]), "platform": None, "access": "unknown", "files": [],
                 "gated": [], "note": "no reader for this host; the link is on the card"}
     try:
-        found = module.listing(urls, facts) if module is comdia else module.listing(urls)
+        found = (module.listing(urls, facts, held) if module is comdia
+                 else module.listing(urls))
     except Exception as exc:                  # one host's outage must not lose the tender
         found = {"access": "unknown", "files": [], "gated": [], "failed": True,
                  "note": "the listing failed: %s: %s" % (type(exc).__name__, str(exc)[:160])}
@@ -81,6 +83,23 @@ def listing(urls, facts=None):
     found["host"] = host_of(urls[0])
     found["platform"] = module.NAME
     return found
+
+
+def unchanged(platform, entry, held):
+    """Whether `entry` is the very file the home already holds as `held` -- its index's document
+    with the same id -- so it need not be downloaded again.
+
+    Only a host that says so can answer yes: Dalux and iBinder name a file's revision, ethics.dk
+    its size beside a stable id, and Comdia answers for a whole vendor page it has compared. Every
+    other host answers no, and its files are downloaded as before.
+    """
+    if not held:
+        return False
+    for _, module in MODULES:
+        if module.NAME == platform:
+            same = getattr(module, "unchanged", None)
+            return bool(same and same(entry, held))
+    return False
 
 
 def download(platform, entry):

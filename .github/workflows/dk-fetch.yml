@@ -34,6 +34,12 @@ jobs:
           # Access to tender on each Comdia tender that reaches the fetch, which the buyer sees.
           COMDIA_USER: ${{ secrets.COMDIA_USER }}
           COMDIA_PASSWORD: ${{ secrets.COMDIA_PASSWORD }}
+          # Read, never written, by the fetch: what the home already holds on the drive.
+          GRAPH_TENANT_ID: ${{ secrets.GRAPH_TENANT_ID }}
+          GRAPH_CLIENT_ID: ${{ secrets.GRAPH_CLIENT_ID }}
+          GRAPH_CLIENT_SECRET: ${{ secrets.GRAPH_CLIENT_SECRET }}
+          GRAPH_DRIVE_ID: ${{ secrets.GRAPH_DRIVE_ID }}
+          GRAPH_DEST_ROOT: ${{ secrets.GRAPH_DEST_ROOT }}
         run: |
           if [ -n "$COMDIA_USER" ]; then echo "::add-mask::$COMDIA_USER"; fi
           python3 eis_tool.py fetch "$REFERENCE" --out work | tee fetch.log
