@@ -48,8 +48,9 @@ tests in `test_docsource.py` don't assert any of them; each one needs an answer 
     a note that gives both counts. The README's table has `partial` for "some were read, some are
     behind the platform's account". Should it be `partial`? The tests follow the brief and expect
     `public`, and check only that both numbers appear in the note.
-15. **Over the 1 GiB limit:** is the limit applied to the sum of claimed sizes or to each member? The
-    tests check one member over the limit and two members whose sum is over it.
+15. **Over the 4 GB limit** (`comdia.MAX_UNPACKED`; the README says "an archive over 4 GB
+    unpacked"): is the limit applied to the sum of claimed sizes or to each member? The tests check
+    one member over the limit and two members whose sum is over it.
 16. Is `ARCHIVE_TIMEOUT` the `timeout` passed to `_send` for Download all? And `tries`? Not tested.
 
 ## Notes and the check tool
@@ -336,3 +337,124 @@ Still open from this pass, and not tested:
     newest first? Not tested.
 16. **The `noticeId` the answer carries** when the reference's case differs from the portal's: the
     tests take it as the portal prints it.
+
+# Open questions — a home read again, an index that moved, a home kept, EU-Supply names
+
+For `test_carry_over.py`, `test_index_moved.py`, `test_dk_day_kept_home.py` and
+`test_eusupply_names.py`, written without running them: no tool in the room executes code. They
+follow the README sections "A home read again", "What a day fetches" (the paragraph "A home never
+goes back to an older notice") and the EU-Supply bullet under "Where the documents are". No existing
+test was found to contradict those sections.
+
+## A home read again (`test_carry_over.py`)
+
+1. **How the drive is read is not tested.** The README says `homes.held` reads
+   `<GRAPH_DEST_ROOT>/DK/tenders/<pid>/` when all five `GRAPH_*` variables are set, asks for
+   `state.json` first and nothing more when it is absent, and answers None when the drive does not
+   answer. The tests clear the variables and only check that four of the five do not reach the
+   network. Which call reads the drive (`deliver_graph.json_at`?), the order of the other four files,
+   what `where` is then, and whether a home on disk with only one of `index.json` / `state.json`
+   falls through to the drive, are all open.
+2. **`homes.newest_published(None)`.** The README says what it answers for a home, not for no home.
+   None, or an error? Not tested; the tests pass a dict with `procurement`. Nor is a `procurement`
+   that is absent, or `published` values of another shape (with a time, or `None` in a notice).
+3. **What the Comdia signature does when the "Not downloaded" marker changes.** The README leaves
+   out "the marker and anything else in the name cell" and keeps "the cells after the marker". After
+   the first night the vendor page marks each file downloaded, so the marker's own cell may read
+   otherwise. Does that cell count? If it does, every watched Comdia tender is downloaded again on
+   the second night. The tests keep the same marker in every row and change only the name cell's
+   image and aside, the name, the group, the cells after the marker, and the rows.
+4. **What a Comdia index entry contains.** The tests build the handed index with `id`, `name`,
+   `folder` and `download` per document, and check of the held files only their ids (in the index's
+   order) and `held`. Which further fields a `held` file carries (`bytes`, `folder`, the index
+   entry's own `download`) is not stated.
+5. **Where the carried files' unreadable entries come from.** `with_carried` "makes the unreadable
+   list again over both without repeating a file". Are a carried record's unreadable entries taken
+   from the home's text manifest (`unreadable_files` with that `record_id`?), and is a file that is
+   unreadable tonight and carried counted once? Not tested: every carried file in the tests is
+   readable text, and `with_carried` is given `unreadable_files: []`.
+6. **The `carried` count in day rows and in `day.json`.** Only `dk_fetch.fetch`'s `carried` is
+   tested, and taken to be a number (`2`), while `store` answers carried *ids*. Whether `carried` in
+   `with_carried`'s answer is a count or a list, and the key of `day.json`'s counts (`counts.carried`?)
+   are not tested. Nor is the run's log line (megabytes downloaded, documents carried).
+7. **What the tests assume of the interfaces:**
+   - `dk_fetch.store(home, platform, files)` works without `carry`, and `carried` is falsy then.
+   - `dk_fetch.fetch` hands the home's index to `docsource.listing` as the keyword `held=`, and
+     "lists the tender again without the index" means a second call whose `held` is absent or None.
+   - `docsource.unchanged`, `dalux.unchanged`, `ibinder.unchanged`, `ethics.unchanged` and
+     `comdia.unchanged` answer exactly `True` or `False` (`assertIs`).
+   - A record's title is `folder/name`, and `name` alone when the folder is empty.
+   - `deliver_dk.fill_carried` reads the drive with `deliver_graph.bytes_at(drive, path, tok)`, the
+     archive at `<home_root>/<pid>.zip` with members `doc/<key>.md`, then `<home_root>/doc/<key>.md`
+     one by one, and the keys are those of the state's `documents`.
+8. **A carriable record whose title matches but whose file is now listed under another id**, and a
+   `held` Comdia file whose id is not in the carry: not tested.
+
+## An index that moved (`test_index_moved.py`)
+
+1. **Does the delivery stamp fields besides the seven named?** The README names `written_at`, `date`,
+   `run_id`, `run_file`, `home`, `archive` and `index_file`. The tests assert that the delivered
+   index equals the home's own outside those seven, so a further stamped field would fail them.
+2. **A field the new index no longer has** (present in the old one only): is it named as moved?
+   "The top-level fields whose values differ" suggests yes. Not tested, except for the stamped ones.
+3. **How values are compared** (lists in another order, `1` against `1.0`, nested key order): plain
+   equality is assumed.
+4. **`index_moved` when nothing moved**: absent, or `[]`? The tests accept either (falsy).
+5. **A procurement that did move** (or is `new`): does its run record and its row carry `index_moved`
+   too? Not tested; only `unchanged` tenders are.
+6. **A drive that fails when `index.json` is asked for** (raises, rather than answering None): the
+   tests only give "no index on the drive", which is taken as no old index, so every field moved.
+7. **What the tests assume of the interfaces:** `deliver_dk.deliver(out, date, run_id, drive, base,
+   tok)`; the drive read with `deliver_graph.json_at` and `bytes_at`, written with `upload`; the
+   index at `<base>/tenders/<pid>/index.json`; and the result's keys `files`, `bytes`, `tally`,
+   `sent`, `carried`, `tenders`. None of these is in the README; they are taken from the delivery as
+   it stood.
+
+## A home kept (`test_dk_day_kept_home.py`)
+
+1. **Which key holds the reason in a watched tender's `lost` entry.** The README says "a reason that
+   says the home holds a newer notice". The tests find the entry by the procedure id anywhere in it
+   and check only `watched: true`; neither the key (`reason`? `note`?) nor its wording is tested.
+2. **Is a kept tender also left out of `changes.json`'s `tenders`?** The README says "it is not among
+   the day's `tenders`". The tests check `day["tenders"]` and `day.json`'s `tenders`, not
+   `changes.json`'s.
+3. **A home of the same day.** "When the home's is later" is read strictly: a home whose newest
+   notice is the same date as the notice about to be read is fetched.
+4. **The portal answers a newer notice and the home is later still.** The tests check that the newer
+   notice is named with `kept_home`, and that every kept entry carries the home's date. Is the
+   window's own notice named as well, and with `kept_home` or without? Not tested.
+5. **A kept watched tender and the day.** Does it make the day incomplete, or count as a watch hole?
+   Only a kept tender of the window is tested to leave the day complete.
+6. **A notice TED handed over and a later home**: the README names it, the tests do not.
+7. **How dates are compared.** The tests use plain `YYYY-MM-DD` strings. A `published` with a time or
+   an offset on one side only is not tested.
+8. **Counts.** Does a kept tender count anywhere in `coverage` or the counts? Not tested.
+9. `homes.held` is taken to be called with `(out_root, pid)` in that order, positionally or not, and
+   `dk_fetch.fetch` to be given the held home as the keyword `held=` (the same object).
+10. `homes.newest_published(None)`: see question 2 under "A home read again".
+
+## EU-Supply names (`test_eusupply_names.py`)
+
+### Two tests corrected after the first draft (not weakened)
+- **The purchase page address.** The first draft expected the first request at another address. The
+  README names no address for the purchase page, so the test was corrected to the address the module
+  builds, `eusupply.PURCHASE % pid`
+  (`https://eu.eu-supply.com/ctm/Supplier/PublicPurchase/123456/0/0?returnUrl=&b=`). The assertion is
+  as exact as before, and still checks that `/app/docmgmt` is never asked.
+- **`gated` holds the public names too.** The first draft expected `gated` to hold only the names after
+  "Available after expression of interest". EU-Supply is "names only — public ones too" and nothing is
+  downloaded there, so a public file is not read either; the test now expects `gated` to hold both and
+  `public_names` the public ones alone. It still compares whole lists.
+
+### Left open
+1. **The order of `gated`.** Public names first, page order, or gated first? The test compares
+   `gated` sorted where both kinds are on one page; with gated names only it takes page order.
+2. **A name listed both as public and as gated**: once in `gated`, or twice? Not tested.
+3. **What "and `�` with them" means for `clean_name`.** Is the replacement character removed, turned
+   into a space like the pair, or only removed where it leads a name (a broken pair)? Not tested.
+4. **The page's encoding.** "Single-byte" is read as latin-1, as the README's `Â` suggests. Bytes
+   0x80–0x9F, which cp1252 reads otherwise, are not tested.
+5. **A space before the extension** is kept after collapsing (`Bilag 1 .pdf`); the README says only
+   runs of spaces collapse and the ends are trimmed.
+6. **The listing's further keys** `public_names` and `tender_id` are not in the README; the tests
+   take them from the module, and accept a name as a string or as a dict with `name`.
